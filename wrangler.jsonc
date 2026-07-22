@@ -12,6 +12,9 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
 
+  // Daily housekeeping: prune analytics events older than 90 days.
+  "triggers": { "crons": ["17 4 * * *"] },
+
   // Load-bearing trick: import markdown prompts and the built single-file SPA
   // directly into the Worker bundle as strings.
   "rules": [

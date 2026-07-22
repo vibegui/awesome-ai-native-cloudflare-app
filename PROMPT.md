@@ -339,7 +339,64 @@ farm.
 
 ---
 
-## 10. Build checklist for a new app
+## 10. The self-improvement loop: throw an agent at it
+
+The endgame of "your app's API is an MCP server": make the app **self-
+improving**. Give it senses (metrics), a compass (goals), and a notebook
+(memory + hypotheses) — all as MCP tools — and then any coding agent connected
+to `/mcp` can improve the app with nothing but tokens. No dashboards, no
+handoff docs, no tribal knowledge: `get_briefing` returns everything an agent
+needs to decide what to do next.
+
+**First-party analytics, full Cloudflare.** Don't add GA or PostHog — the
+Worker *is* the collector. An append-only `events` table in D1; a `track()`
+helper on every interesting code path (pageviews on served routes, tool
+calls, WhatsApp turns, LLM token spend); a public `POST /e` beacon for
+client-side events; uniques via a **daily-rotating salted hash** of IP+UA
+(cookieless — can count, can't track across days); `request.cf.country` as a
+free geo dimension; a cron pruning events past 90 days. Aggregates via
+`metrics_query` (group by day/name/path/country) — SQL through a whitelist,
+never interpolated.
+
+**The data model of improvement** (one migration):
+- `goals` — the objective function: `{name, metric, target, direction,
+  window_days}` where `metric` is an event name. Progress is computed live.
+  Without goals, autopilot is drift.
+- `memories` — the lab notebook: `observation | decision | result | lesson`.
+  Sessions are ephemeral; the notebook is what compounds.
+- `hypotheses` — falsifiable bets: "If we <change>, then <metric> will
+  <move> because <reason>", with lifecycle `proposed → testing →
+  confirmed | refuted`. Every code change traces to one.
+
+**The agent handshake.** Commit two files and the app becomes self-improving
+for anyone who clones it:
+1. `.mcp.json` — connects Claude Code to the deployed app's `/mcp` (env-var
+   expansion keeps the token out of git). The agent now sees production
+   reality: real metrics, real goals, real history.
+2. `CLAUDE.md` — the operating manual: brief yourself → conclude old bets →
+   pick ONE hypothesis → implement locally → deploy → record. The agent edits
+   the code on the human's machine with the human's credentials — no
+   server-side git/deploy tokens needed, which is the whole trick.
+
+**Governance rules that make autopilot safe** (learned from bigger systems
+that run agent teams this way):
+- **Autonomy ends at consequence.** Agents own code, config, deploys,
+  analytics. Humans approve: messaging real users, spending money, deleting
+  data, auth changes.
+- **One hypothesis per change**; conclude every bet (`refuted` is as valuable
+  as `confirmed`); never leave `testing` bets dangling.
+- **Unmeasured features are invisible** — instrumentation is part of the
+  definition of done.
+- **Lessons compound**: a lesson that recurs gets promoted into `CLAUDE.md`
+  itself, so the operating manual improves like any other code.
+- Scale-up path: multiple named agents with roles (analyst, builder,
+  reviewer), a strict reporting tree with a hard headcount cap, and a
+  proposals-only heartbeat cron that *suggests* work but never acts — but
+  start with one agent and one loop.
+
+---
+
+## 11. Build checklist for a new app
 
 ```
 [ ] bun create vite (React+TS) → collapse into the folder shape in §2
@@ -355,6 +412,9 @@ farm.
 [ ] Connect repo to Workers Builds; push to main; verify preview URLs on PRs
 [ ] Register /mcp?token=... in deco studio; call a tool from chat
 [ ] (Optional) WhatsApp: Meta app + number, secrets, configure webhook, done
+[ ] Self-improvement: events/goals/memories/hypotheses migration + track()
+    on every surface + get_briefing tool + .mcp.json + CLAUDE.md
+[ ] Set 1-3 goals via goal_set; connect Claude Code; let it run the loop
 ```
 
 The loop from here: every new feature = a core function + an MCP tool +

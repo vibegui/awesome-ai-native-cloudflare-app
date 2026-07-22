@@ -20,6 +20,7 @@ export interface Env {
 
   // Secrets (.dev.vars / wrangler secret put)
   MCP_AUTH_TOKEN?: string;
+  ANALYTICS_SALT?: string;
   CF_AI_GATEWAY_TOKEN?: string;
   OPENROUTER_API_KEY?: string;
   META_ACCESS_TOKEN?: string;

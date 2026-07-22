@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "self": {
+      "type": "http",
+      "url": "${APP_MCP_URL}",
+      "headers": {
+        "Authorization": "Bearer ${APP_MCP_TOKEN}"
+      }
+    }
+  }
+}

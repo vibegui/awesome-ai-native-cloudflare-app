@@ -35,6 +35,23 @@ The demo domain is a trivial notes app + WhatsApp assistant — deliberately
 boring, so the architecture is the interesting part. Replace the tools and
 views with your own.
 
+## Self-improving by design
+
+The app measures itself (first-party analytics in D1 — no GA/PostHog: a
+`track()` helper, a `POST /e` beacon, cookieless daily-hash uniques) and
+exposes **goals, memory, and hypotheses as MCP tools**. Connect Claude Code to
+the deployed app (`.mcp.json` — set `APP_MCP_URL` / `APP_MCP_TOKEN`), and
+`CLAUDE.md` turns any session into an improvement cycle:
+
+```
+get_briefing → conclude testing hypotheses against real metrics →
+pick one proposed bet → edit the code locally → deploy → record to memory
+```
+
+Set a few goals (`goal_set`), throw an agent at it, spend tokens, watch the
+metrics move. Humans stay in the loop at consequence: user-facing messages,
+money, data deletion. Full pattern in [PROMPT.md §10](./PROMPT.md).
+
 ## Quickstart
 
 ```sh

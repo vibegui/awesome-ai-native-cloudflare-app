@@ -8,6 +8,7 @@
 // with the tool's result preloaded.
 import type { Env } from "../env";
 import { MetaApi } from "../services/meta";
+import { IMPROVE_TOOLS } from "./improve";
 
 export interface ToolDef {
   name: string;
@@ -24,7 +25,7 @@ export interface Note {
   created_at: number;
 }
 
-export const TOOLS: ToolDef[] = [
+const APP_TOOLS: ToolDef[] = [
   {
     name: "get_status",
     description: "Health snapshot: note count and which integrations are configured.",
@@ -113,6 +114,8 @@ export const TOOLS: ToolDef[] = [
     },
   },
 ];
+
+export const TOOLS: ToolDef[] = [...APP_TOOLS, ...IMPROVE_TOOLS];
 
 export const toolByName: Record<string, ToolDef> = Object.fromEntries(
   TOOLS.map((t) => [t.name, t]),

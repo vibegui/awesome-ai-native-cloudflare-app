@@ -6,6 +6,7 @@
 // no database required for conversation state.
 import { chatCompletion, type ChatMessage } from "../ai/gateway";
 import type { Env } from "../env";
+import { track } from "../lib/track";
 import { MetaApi } from "../services/meta";
 import systemPrompt from "../../../prompts/system.md";
 
@@ -52,10 +53,15 @@ export async function handleInbound(env: Env, msg: InboundMessage): Promise<void
     try {
       const result = await chatCompletion(env, messages);
       reply = result.content.trim() || "Sorry, I could not come up with a reply. Try again?";
+      await track(env, "llm_tokens", {
+        value: result.usage?.total_tokens ?? 0,
+        dims: { model: env.LLM_MODEL ?? "unknown" },
+      });
     } catch (err) {
       console.error("LLM failed", err);
       reply = "Sorry, something went wrong on my side. Please try again in a moment.";
     }
+    await track(env, "wa_message", { dims: { direction: "in" } });
 
     await meta.sendTextMessage(msg.from, reply);
 

@@ -1,0 +1,348 @@
+// The self-improvement tool group: metrics, goals, memory, hypotheses.
+//
+// These tools exist so a coding agent (Claude Code connected to /mcp via
+// .mcp.json) can run the improvement loop against the LIVE app:
+//
+//   get_briefing → conclude past experiments → pick/create a hypothesis →
+//   edit the code locally → deploy → record what happened.
+//
+// The app provides the senses (metrics), the compass (goals), and the
+// notebook (memory); the agent provides the intelligence. See CLAUDE.md.
+import type { Env } from "../env";
+import type { ToolDef } from "./tools";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// group_by values are mapped to SQL through this whitelist — never
+// interpolate user input into SQL.
+const GROUP_EXPRS: Record<string, string> = {
+  day: "date(ts / 1000, 'unixepoch')",
+  name: "name",
+  path: "coalesce(path, '')",
+  country: "coalesce(country, '')",
+};
+
+interface GoalRow {
+  id: string;
+  name: string;
+  description: string;
+  metric: string;
+  target: number;
+  direction: "up" | "down";
+  window_days: number;
+  status: string;
+  created_at: number;
+}
+
+async function goalProgress(env: Env, goal: GoalRow) {
+  const since = Date.now() - goal.window_days * DAY_MS;
+  const row = await env.DB.prepare(
+    "SELECT COALESCE(SUM(value), 0) AS current FROM events WHERE name = ? AND ts >= ?",
+  )
+    .bind(goal.metric, since)
+    .first<{ current: number }>();
+  const current = row?.current ?? 0;
+  const achieved = goal.direction === "up" ? current >= goal.target : current <= goal.target;
+  return { ...goal, current, achieved };
+}
+
+export const IMPROVE_TOOLS: ToolDef[] = [
+  {
+    name: "get_briefing",
+    description:
+      "Start here every session. Returns active goals with live progress, a 7-day metrics " +
+      "summary, open hypotheses (proposed/testing), and recent memories — everything needed " +
+      "to decide what to improve next.",
+    inputSchema: { type: "object", properties: {} },
+    async execute(env) {
+      const since7d = Date.now() - 7 * DAY_MS;
+
+      const goals = await env.DB.prepare("SELECT * FROM goals WHERE status = 'active'").all<GoalRow>();
+      const goalsWithProgress = await Promise.all(goals.results.map((g) => goalProgress(env, g)));
+
+      const [metrics, traffic, hypotheses, memories] = await Promise.all([
+        env.DB.prepare(
+          "SELECT name, COUNT(*) AS events, SUM(value) AS value FROM events WHERE ts >= ? GROUP BY name ORDER BY events DESC LIMIT 25",
+        )
+          .bind(since7d)
+          .all(),
+        env.DB.prepare(
+          "SELECT COUNT(*) AS pageviews, COUNT(DISTINCT visitor) AS uniques FROM events WHERE name = 'pageview' AND ts >= ?",
+        )
+          .bind(since7d)
+          .first(),
+        env.DB.prepare(
+          "SELECT * FROM hypotheses WHERE status IN ('proposed', 'testing') ORDER BY updated_at DESC LIMIT 20",
+        ).all(),
+        env.DB.prepare("SELECT * FROM memories ORDER BY created_at DESC LIMIT 10").all(),
+      ]);
+
+      return {
+        goals: goalsWithProgress,
+        metrics7d: metrics.results,
+        traffic7d: traffic,
+        openHypotheses: hypotheses.results,
+        recentMemories: memories.results,
+        guidance:
+          "Loop: 1) conclude any 'testing' hypotheses using metrics_query (confirmed/refuted + " +
+          "a lesson memory_write); 2) pick the proposed hypothesis with the highest goal impact, " +
+          "or create one from an observation; 3) implement it in code, instrument it with " +
+          "track(), deploy; 4) hypothesis_update to 'testing' and memory_write the decision.",
+      };
+    },
+  },
+  {
+    name: "metrics_query",
+    description:
+      "Aggregate the event stream. Filter by event name, group by day|name|path|country, " +
+      "over a trailing window. Returns events count, summed value, and unique visitors per group.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Event name filter, e.g. 'pageview' (optional)" },
+        since_days: { type: "number", description: "Trailing window in days (default 7, max 90)" },
+        group_by: { type: "string", enum: ["day", "name", "path", "country"], description: "Default 'day'" },
+      },
+    },
+    async execute(env, input) {
+      const sinceDays = Math.min(Math.max(Number(input.since_days) || 7, 1), 90);
+      const groupBy = String(input.group_by ?? "day");
+      const expr = GROUP_EXPRS[groupBy];
+      if (!expr) throw new Error(`group_by must be one of: ${Object.keys(GROUP_EXPRS).join(", ")}`);
+      const since = Date.now() - sinceDays * DAY_MS;
+      const name = input.name ? String(input.name) : null;
+
+      const sql =
+        `SELECT ${expr} AS key, COUNT(*) AS events, SUM(value) AS value, ` +
+        "COUNT(DISTINCT visitor) AS uniques FROM events WHERE ts >= ? " +
+        (name ? "AND name = ? " : "") +
+        "GROUP BY key ORDER BY key";
+      const stmt = env.DB.prepare(sql);
+      const { results } = await (name ? stmt.bind(since, name) : stmt.bind(since)).all();
+      return { since_days: sinceDays, group_by: groupBy, name, rows: results };
+    },
+  },
+  {
+    name: "goal_set",
+    description:
+      "Create or update a goal. A goal targets an event name (`metric`): progress is " +
+      "SUM(value) of that event over the trailing window_days. Pass id to update.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Goal id (only when updating)" },
+        name: { type: "string" },
+        description: { type: "string" },
+        metric: { type: "string", description: "Event name this goal tracks" },
+        target: { type: "number" },
+        direction: { type: "string", enum: ["up", "down"] },
+        window_days: { type: "number", description: "Trailing window (default 7)" },
+        status: { type: "string", enum: ["active", "achieved", "abandoned"] },
+      },
+      required: ["name", "metric", "target"],
+    },
+    async execute(env, input) {
+      const id = input.id ? String(input.id) : crypto.randomUUID();
+      await env.DB.prepare(
+        `INSERT INTO goals (id, name, description, metric, target, direction, window_days, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name, description = excluded.description,
+           metric = excluded.metric, target = excluded.target, direction = excluded.direction,
+           window_days = excluded.window_days, status = excluded.status`,
+      )
+        .bind(
+          id,
+          String(input.name),
+          String(input.description ?? ""),
+          String(input.metric),
+          Number(input.target),
+          input.direction === "down" ? "down" : "up",
+          Math.max(1, Number(input.window_days) || 7),
+          ["active", "achieved", "abandoned"].includes(String(input.status)) ? String(input.status) : "active",
+          Date.now(),
+        )
+        .run();
+      const goal = await env.DB.prepare("SELECT * FROM goals WHERE id = ?").bind(id).first<GoalRow>();
+      return goal ? await goalProgress(env, goal) : { id };
+    },
+  },
+  {
+    name: "goal_list",
+    description: "List goals with live progress (current metric value vs target).",
+    inputSchema: { type: "object", properties: {} },
+    async execute(env) {
+      const { results } = await env.DB.prepare(
+        "SELECT * FROM goals ORDER BY created_at DESC",
+      ).all<GoalRow>();
+      return { goals: await Promise.all(results.map((g) => goalProgress(env, g))) };
+    },
+  },
+  {
+    name: "memory_write",
+    description:
+      "Record to the app's lab notebook so future sessions don't rediscover it. Kinds: " +
+      "observation (something the metrics show), decision (what you changed and why), " +
+      "result (what a change did), lesson (a durable takeaway).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["observation", "decision", "result", "lesson"] },
+        content: { type: "string" },
+        goal_id: { type: "string", description: "Related goal (optional)" },
+      },
+      required: ["kind", "content"],
+    },
+    async execute(env, input) {
+      const memory = {
+        id: crypto.randomUUID(),
+        kind: String(input.kind),
+        content: String(input.content),
+        goal_id: input.goal_id ? String(input.goal_id) : null,
+        created_at: Date.now(),
+      };
+      if (!["observation", "decision", "result", "lesson"].includes(memory.kind)) {
+        throw new Error("kind must be observation | decision | result | lesson");
+      }
+      await env.DB.prepare(
+        "INSERT INTO memories (id, kind, content, goal_id, created_at) VALUES (?, ?, ?, ?, ?)",
+      )
+        .bind(memory.id, memory.kind, memory.content, memory.goal_id, memory.created_at)
+        .run();
+      return { created: memory };
+    },
+  },
+  {
+    name: "memory_search",
+    description: "Search the notebook (substring match), newest first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Substring to search for (optional — omit for latest)" },
+        kind: { type: "string", enum: ["observation", "decision", "result", "lesson"] },
+        limit: { type: "number", description: "Default 20, max 100" },
+      },
+    },
+    async execute(env, input) {
+      const limit = Math.min(Math.max(Number(input.limit) || 20, 1), 100);
+      const conditions: string[] = [];
+      const binds: unknown[] = [];
+      if (input.query) {
+        conditions.push("content LIKE ?");
+        binds.push(`%${String(input.query)}%`);
+      }
+      if (input.kind) {
+        conditions.push("kind = ?");
+        binds.push(String(input.kind));
+      }
+      const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+      const { results } = await env.DB.prepare(
+        `SELECT * FROM memories ${where} ORDER BY created_at DESC LIMIT ${limit}`,
+      )
+        .bind(...binds)
+        .all();
+      return { memories: results };
+    },
+  },
+  {
+    name: "hypothesis_create",
+    description:
+      "File a falsifiable bet: 'If we <change>, then <metric> will <move> because <reason>'. " +
+      "Every code change should trace back to one of these.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        statement: { type: "string", description: "The full if/then/because statement" },
+        goal_id: { type: "string", description: "Goal this serves (optional)" },
+        expected_metric: { type: "string", description: "Event name expected to move" },
+        expected_delta: { type: "string", description: "Expected effect, e.g. '+20% in 7d'" },
+      },
+      required: ["statement"],
+    },
+    async execute(env, input) {
+      const now = Date.now();
+      const hypothesis = {
+        id: crypto.randomUUID(),
+        goal_id: input.goal_id ? String(input.goal_id) : null,
+        statement: String(input.statement),
+        expected_metric: input.expected_metric ? String(input.expected_metric) : null,
+        expected_delta: input.expected_delta ? String(input.expected_delta) : null,
+        status: "proposed",
+      };
+      await env.DB.prepare(
+        `INSERT INTO hypotheses (id, goal_id, statement, expected_metric, expected_delta, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(
+          hypothesis.id,
+          hypothesis.goal_id,
+          hypothesis.statement,
+          hypothesis.expected_metric,
+          hypothesis.expected_delta,
+          hypothesis.status,
+          now,
+          now,
+        )
+        .run();
+      return { created: hypothesis };
+    },
+  },
+  {
+    name: "hypothesis_update",
+    description:
+      "Move a hypothesis through its lifecycle (proposed → testing → confirmed|refuted|abandoned) " +
+      "and/or append evidence. Concluding one should come with a 'result' or 'lesson' memory.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        status: { type: "string", enum: ["proposed", "testing", "confirmed", "refuted", "abandoned"] },
+        evidence: { type: "string", description: "Appended (timestamped) to the evidence log" },
+      },
+      required: ["id"],
+    },
+    async execute(env, input) {
+      const id = String(input.id);
+      const existing = await env.DB.prepare("SELECT * FROM hypotheses WHERE id = ?")
+        .bind(id)
+        .first<{ evidence: string }>();
+      if (!existing) throw new Error(`unknown hypothesis: ${id}`);
+
+      const sets: string[] = ["updated_at = ?"];
+      const binds: unknown[] = [Date.now()];
+      if (input.status) {
+        if (!["proposed", "testing", "confirmed", "refuted", "abandoned"].includes(String(input.status))) {
+          throw new Error("invalid status");
+        }
+        sets.push("status = ?");
+        binds.push(String(input.status));
+      }
+      if (input.evidence) {
+        const stamped = `[${new Date().toISOString()}] ${String(input.evidence)}`;
+        sets.push("evidence = ?");
+        binds.push(existing.evidence ? `${existing.evidence}\n${stamped}` : stamped);
+      }
+      binds.push(id);
+      await env.DB.prepare(`UPDATE hypotheses SET ${sets.join(", ")} WHERE id = ?`).bind(...binds).run();
+      return await env.DB.prepare("SELECT * FROM hypotheses WHERE id = ?").bind(id).first();
+    },
+  },
+  {
+    name: "hypothesis_list",
+    description: "List hypotheses, optionally filtered by status.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["proposed", "testing", "confirmed", "refuted", "abandoned"] },
+      },
+    },
+    async execute(env, input) {
+      const stmt = input.status
+        ? env.DB.prepare("SELECT * FROM hypotheses WHERE status = ? ORDER BY updated_at DESC").bind(
+            String(input.status),
+          )
+        : env.DB.prepare("SELECT * FROM hypotheses ORDER BY updated_at DESC LIMIT 100");
+      const { results } = await stmt.all();
+      return { hypotheses: results };
+    },
+  },
+];

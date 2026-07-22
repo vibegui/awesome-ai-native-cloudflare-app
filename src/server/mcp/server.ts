@@ -3,6 +3,7 @@
 // deco studio, Claude, Cursor, et al. need to list and call tools and render
 // MCP-App UI resources.
 import type { Env } from "../env";
+import { track } from "../lib/track";
 import { RESOURCES, readResource } from "./resources";
 import { TOOLS, toolByName } from "./tools";
 
@@ -74,6 +75,7 @@ export async function handleMcp(request: Request, env: Env): Promise<Response> {
       const tool = name ? toolByName[name] : undefined;
       if (!tool) return replyError(rpc.id, -32602, `unknown tool: ${name}`);
       try {
+        await track(env, "mcp_tool_call", { dims: { tool: tool.name } });
         const out = await tool.execute(env, args);
         return reply(rpc.id, {
           content: [{ type: "text", text: JSON.stringify(out) }],
