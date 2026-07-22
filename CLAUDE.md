@@ -18,8 +18,10 @@ export APP_MCP_TOKEN="<MCP_AUTH_TOKEN>"
 Three fixed hats. **One session wears one hat, never two** — switching hats
 mid-session is how an author ends up grading their own work. The human names
 the hat ("be the reviewer") or you take the first hat with work in the pull
-order below. Sign every write with your hat's handle (rename them per
-project; the roles are the part to keep).
+order below. Sign every write with your hat's handle. Rename them per
+project — proper names beat role labels once there's more than one agent —
+and the roles are the part to keep. Enforcement compares handles
+case-insensitively, so casing is style, not protocol.
 
 - **`analyst`** (senses → bets). Owns: metrics reading, `observation`
   memories, filing and ranking hypotheses. Never writes code. Done when every

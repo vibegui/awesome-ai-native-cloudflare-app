@@ -353,7 +353,7 @@ export const IMPROVE_TOOLS: ToolDef[] = [
         }
         if (input.status === "confirmed") {
           const reviewer = input.reviewed_by ? String(input.reviewed_by) : existing.reviewed_by;
-          if (!reviewer || (existing.author && reviewer === existing.author)) {
+          if (!reviewer || (existing.author && reviewer.toLowerCase() === existing.author.toLowerCase())) {
             throw new Error(
               "confirming requires reviewed_by set to a handle DIFFERENT from the author — " +
               "run an adversarial review (assume the conclusion is wrong: confounders, " +
