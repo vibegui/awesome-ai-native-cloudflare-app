@@ -46,6 +46,23 @@ async function goalProgress(env: Env, goal: GoalRow) {
   return { ...goal, current, achieved };
 }
 
+interface BudgetRow {
+  agent: string;
+  weekly_tokens: number;
+  granted_by: string | null;
+  rationale: string;
+  updated_at: number;
+}
+
+async function spent7d(env: Env, agent: string): Promise<number> {
+  const row = await env.DB.prepare(
+    "SELECT COALESCE(SUM(value), 0) AS spent FROM events WHERE name = 'tokens_spent' AND ts >= ? AND lower(json_extract(dims, '$.agent')) = lower(?)",
+  )
+    .bind(Date.now() - 7 * DAY_MS, agent)
+    .first<{ spent: number }>();
+  return row?.spent ?? 0;
+}
+
 export const IMPROVE_TOOLS: ToolDef[] = [
   {
     name: "get_briefing",
@@ -60,7 +77,7 @@ export const IMPROVE_TOOLS: ToolDef[] = [
       const goals = await env.DB.prepare("SELECT * FROM goals WHERE status = 'active'").all<GoalRow>();
       const goalsWithProgress = await Promise.all(goals.results.map((g) => goalProgress(env, g)));
 
-      const [metrics, traffic, hypotheses, memories, tasks, messages, memoryCount] = await Promise.all([
+      const [metrics, traffic, hypotheses, memories, tasks, messages, memoryCount, budgetRows, spendRows] = await Promise.all([
         env.DB.prepare(
           "SELECT name, COUNT(*) AS events, SUM(value) AS value FROM events WHERE ts >= ? GROUP BY name ORDER BY events DESC LIMIT 25",
         )
@@ -80,6 +97,12 @@ export const IMPROVE_TOOLS: ToolDef[] = [
         ).all(),
         env.DB.prepare("SELECT * FROM messages ORDER BY created_at DESC LIMIT 15").all(),
         env.DB.prepare("SELECT COUNT(*) AS n FROM memories").first<{ n: number }>(),
+        env.DB.prepare("SELECT * FROM budgets ORDER BY agent").all<BudgetRow>(),
+        env.DB.prepare(
+          "SELECT lower(json_extract(dims, '$.agent')) AS agent, SUM(value) AS spent FROM events WHERE name = 'tokens_spent' AND ts >= ? GROUP BY 1",
+        )
+          .bind(since7d)
+          .all<{ agent: string; spent: number }>(),
       ]);
 
       return {
@@ -91,12 +114,16 @@ export const IMPROVE_TOOLS: ToolDef[] = [
         recentRoomMessages: messages.results,
         recentMemories: memories.results,
         memoryCount: memoryCount?.n ?? 0,
+        budgets: budgetRows.results.map((b) => {
+          const spent = spendRows.results.find((r) => r.agent === b.agent.toLowerCase())?.spent ?? 0;
+          return { agent: b.agent, weekly_tokens: b.weekly_tokens, spent_7d: spent, remaining: b.weekly_tokens - spent };
+        }),
         guidance:
           "Loop: 1) conclude any 'testing' hypotheses using metrics_query (confirmed needs a " +
           "reviewer that isn't the author); 2) claim or create ONE task tied to the highest-" +
           "impact proposed hypothesis; 3) implement it in code, instrument it with track(), " +
           "deploy; 4) hypothesis_update to 'testing', task_update to review/done, memory_write " +
-          "the decision, room_post a short handoff note. Compact memories when memoryCount > 30.",
+          "the decision, room_post a short handoff note, spend_report your session tokens. Compact memories when memoryCount > 30. Budgets are earned: efficiency (tokens per reviewed outcome) drives your allowance — see budget_status.",
       };
     },
   },
@@ -568,6 +595,140 @@ export const IMPROVE_TOOLS: ToolDef[] = [
         : env.DB.prepare(`SELECT * FROM messages ORDER BY created_at DESC LIMIT ${limit}`);
       const { results } = await stmt.all();
       return { messages: results };
+    },
+  },
+  {
+    name: "spend_report",
+    description:
+      "Report tokens spent this session, attributed to your handle and (ideally) a task. " +
+      "Budgets are earned: efficiency (tokens per reviewed outcome) drives next week's " +
+      "allowance. Call at session end — an unreported session looks like pure overhead. " +
+      "Returns your remaining weekly budget.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agent: { type: "string", description: "Your handle" },
+        tokens: { type: "number", description: "Total tokens this session (from /cost or best estimate)" },
+        task_id: { type: "string", description: "Task the spend served (optional)" },
+        hypothesis_id: { type: "string" },
+        note: { type: "string", description: "One line on what the tokens bought" },
+      },
+      required: ["agent", "tokens"],
+    },
+    async execute(env, input) {
+      const agent = String(input.agent);
+      const tokens = Number(input.tokens);
+      if (!Number.isFinite(tokens) || tokens <= 0) throw new Error("tokens must be a positive number");
+      const dims: Record<string, string | number> = { agent };
+      if (input.task_id) dims.task_id = String(input.task_id);
+      if (input.hypothesis_id) dims.hypothesis_id = String(input.hypothesis_id);
+      if (input.note) dims.note = String(input.note).slice(0, 200);
+      await env.DB.prepare(
+        "INSERT INTO events (name, value, dims, ts) VALUES ('tokens_spent', ?, ?, ?)",
+      )
+        .bind(tokens, JSON.stringify(dims).slice(0, 512), Date.now())
+        .run();
+      const budget = await env.DB.prepare("SELECT * FROM budgets WHERE agent = ?")
+        .bind(agent)
+        .first<BudgetRow>();
+      const spent = await spent7d(env, agent);
+      return {
+        recorded: tokens,
+        agent,
+        weekly_tokens: budget?.weekly_tokens ?? null,
+        spent_7d: spent,
+        remaining: budget ? budget.weekly_tokens - spent : null,
+      };
+    },
+  },
+  {
+    name: "budget_status",
+    description:
+      "The efficiency ledger: per agent — weekly allowance, 7-day spend, remaining, and " +
+      "outcomes (reviewer-closed tasks, confirmed bets authored, verdicts issued) with tokens " +
+      "per outcome. This is what the CEO reads before reallocating budgets.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+    async execute(env) {
+      const since = Date.now() - 7 * DAY_MS;
+      const { results } = await env.DB.prepare("SELECT * FROM budgets ORDER BY agent").all<BudgetRow>();
+      const statuses = await Promise.all(
+        results.map(async (b) => {
+          const [spent, tasksDone, confirmed, verdicts] = await Promise.all([
+            spent7d(env, b.agent),
+            env.DB.prepare(
+              "SELECT COUNT(*) AS n FROM tasks WHERE lower(owner) = lower(?) AND status = 'done' AND updated_at >= ?",
+            )
+              .bind(b.agent, since)
+              .first<{ n: number }>(),
+            env.DB.prepare(
+              "SELECT COUNT(*) AS n FROM hypotheses WHERE lower(author) = lower(?) AND status = 'confirmed' AND updated_at >= ?",
+            )
+              .bind(b.agent, since)
+              .first<{ n: number }>(),
+            env.DB.prepare(
+              "SELECT COUNT(*) AS n FROM hypotheses WHERE lower(reviewed_by) = lower(?) AND status IN ('confirmed', 'refuted') AND updated_at >= ?",
+            )
+              .bind(b.agent, since)
+              .first<{ n: number }>(),
+          ]);
+          const done = tasksDone?.n ?? 0;
+          return {
+            agent: b.agent,
+            weekly_tokens: b.weekly_tokens,
+            spent_7d: spent,
+            remaining: b.weekly_tokens - spent,
+            tasks_done_7d: done,
+            tokens_per_task_done: done > 0 ? Math.round(spent / done) : null,
+            hypotheses_confirmed_7d: confirmed?.n ?? 0,
+            verdicts_7d: verdicts?.n ?? 0,
+            granted_by: b.granted_by,
+            rationale: b.rationale,
+          };
+        }),
+      );
+      return {
+        statuses,
+        note:
+          "Only reviewer-closed tasks and reviewer-issued verdicts count as outcomes — " +
+          "self-graded work is worth zero. tokens_per_task_done falling week-over-week is " +
+          "the case for a bigger budget.",
+      };
+    },
+  },
+  {
+    name: "budget_set",
+    description:
+      "Grant or adjust an agent's weekly token allowance. Protocol: only the CEO hat (or the " +
+      "human) calls this, after reading budget_status, with the rationale posted to #general. " +
+      "Efficiency up → budget up; efficiency down → budget down.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        agent: { type: "string" },
+        weekly_tokens: { type: "number" },
+        granted_by: { type: "string", description: "CEO/human handle making the call" },
+        rationale: { type: "string", description: "Why — tie it to the efficiency ledger" },
+      },
+      required: ["agent", "weekly_tokens", "granted_by", "rationale"],
+    },
+    async execute(env, input) {
+      const weekly = Number(input.weekly_tokens);
+      if (!Number.isFinite(weekly) || weekly < 0) throw new Error("weekly_tokens must be >= 0");
+      await env.DB.prepare(
+        `INSERT INTO budgets (agent, weekly_tokens, granted_by, rationale, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(agent) DO UPDATE SET weekly_tokens = excluded.weekly_tokens,
+           granted_by = excluded.granted_by, rationale = excluded.rationale,
+           updated_at = excluded.updated_at`,
+      )
+        .bind(String(input.agent), weekly, String(input.granted_by), String(input.rationale), Date.now())
+        .run();
+      const spent = await spent7d(env, String(input.agent));
+      return { agent: String(input.agent), weekly_tokens: weekly, spent_7d: spent, remaining: weekly - spent };
     },
   },
 ];

@@ -419,6 +419,15 @@ that run agent teams this way):
   itself, so the operating manual improves like any other code.
 - **Spend tokens where they think**: frontier model for planning, review,
   and concluding bets; cheap tiers for routine sweeps.
+- **Budgets are earned — the token economy.** Give each agent a weekly token
+  allowance; spend is self-reported per session against a task
+  (`spend_report`); efficiency (tokens per reviewer-closed outcome) is the
+  ledger (`budget_status`); a CEO hat reallocates weekly (`budget_set`) —
+  better efficiency buys a bigger budget. This single incentive makes agents
+  route routine work to cheap models, reuse lessons, and keep scopes tight —
+  and it generalizes to real money (an ads agent lowering cost-per-click
+  earns more ad budget). Only reviewer-closed outcomes count, or agents farm
+  trivial tasks.
 - Scale-up path: multiple named agents with roles (analyst, builder,
   reviewer), a strict reporting tree with a hard headcount cap, and a
   proposals-only heartbeat cron that *suggests* work but never acts — but

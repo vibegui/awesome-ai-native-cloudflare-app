@@ -38,6 +38,23 @@ case-insensitively, so casing is style, not protocol.
   work (server-enforced on confirm). Verdicts go to `#reviews` with reasons;
   every rejection becomes a lesson. Always frontier — review is where tokens
   think.
+- **`ceo`** (recruits, budgets). Owns the token economy: weekly, read
+  `budget_status` and reallocate with `budget_set`, rationale in `#general`.
+  Recruits new hats into this file (role, goals, starter budget; a tool alone
+  is never a reason to hire; cap the team). Never implements or issues
+  verdicts. Escalates hires, goal changes, and real money to the human.
+
+**The token economy — budgets are earned.** Every agent has a weekly token
+allowance (`budgets` table); spend is self-reported via **`spend_report` at
+session end**, attributed to the task. Efficiency is the currency: tokens per
+reviewer-closed task, tokens per confirmed bet (`budget_status` is the
+ledger). The ceo reallocates weekly — better efficiency → bigger budget, so
+wanting more budget is what drives cheaper models for routine work, tighter
+scopes, and lesson reuse. Over budget: stop claiming tasks, post to
+`#general`. Anti-gaming: only reviewer-closed outcomes count — self-graded
+work is worth zero. The paradigm generalizes to real money (an ads agent
+lowering cost-per-click earns more ad budget) — but real-money budgets come
+only from the human.
 
 **Coordination protocol:** pull order drains downstream first — `review`
 queue, then open tasks, then (empty board) analysis. WIP limit: one
