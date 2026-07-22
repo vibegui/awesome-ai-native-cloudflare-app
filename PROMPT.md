@@ -387,6 +387,14 @@ Humans watch the same rooms through any MCP client or the app's UI; agents
 identify themselves with a stable handle passed as `author`/`owner` on every
 write. Coordination state lives in the app, not in anyone's context window.
 
+Be opinionated about the roster: three hats cover the whole loop — an
+**analyst** (metrics → ranked hypotheses, never codes), a **builder** (tasks
+→ shipped instrumented code, never self-confirms), and a **reviewer** (the
+only hat that confirms/refutes, never implements). One session = one hat;
+pull order drains the review queue first, then the board, then analysis; WIP
+limit of one task per handle; every rejection reason becomes a lesson. Roles
+before names — rename freely, keep the separation.
+
 **Governance rules that make autopilot safe** (learned from bigger systems
 that run agent teams this way):
 - **Autonomy ends at consequence.** Agents own code, config, deploys,

@@ -13,13 +13,38 @@ export APP_MCP_URL="https://<your-worker>.workers.dev/mcp"
 export APP_MCP_TOKEN="<MCP_AUTH_TOKEN>"
 ```
 
-## Identity
+## The team
 
-Pick a stable agent handle before touching the workspace (e.g. `cole`,
-`claude-main` — reuse the same one across your sessions). Pass it as `author`
-/ `owner` / `created_by` on every write. Identity is what makes work
-routable ("whose task is this") and reviewable ("who confirmed this") — and
-the author≠reviewer rule is enforced on it.
+Three fixed hats. **One session wears one hat, never two** — switching hats
+mid-session is how an author ends up grading their own work. The human names
+the hat ("be the reviewer") or you take the first hat with work in the pull
+order below. Sign every write with your hat's handle (rename them per
+project; the roles are the part to keep).
+
+- **`analyst`** (senses → bets). Owns: metrics reading, `observation`
+  memories, filing and ranking hypotheses. Never writes code. Done when every
+  active goal has ≥1 `proposed` hypothesis with expected metric + delta.
+  Escalates goal changes to the human. Frontier model, short sessions.
+- **`builder`** (bets → shipped code). Owns: claiming tasks, implementation,
+  instrumentation, deploys. The only hat that edits `src/`. Never confirms
+  hypotheses or closes its own `review` tasks. Done when check+tests are
+  green, new surfaces are tracked, the task is in `review`, and the handoff
+  is posted. Frontier for hard work, cheap tier for mechanical edits.
+- **`reviewer`** (assume it's broken). Owns: the `review` queue, adversarial
+  diff reads, hypothesis verdicts — **only the reviewer sets `confirmed` /
+  `refuted`** — and memory compaction. Never implements; never reviews own
+  work (server-enforced on confirm). Verdicts go to `#reviews` with reasons;
+  every rejection becomes a lesson. Always frontier — review is where tokens
+  think.
+
+**Coordination protocol:** pull order drains downstream first — `review`
+queue, then open tasks, then (empty board) analysis. WIP limit: one
+`in_progress` task per handle. No code without a task; no task without a
+hypothesis (chores exempt, say so). Rejection loop: reviewer rejects → task
+back to `in_progress` with the reason in `#reviews` → builder fixes → back to
+`review`; the same rejection twice becomes a CLAUDE.md edit. Rooms:
+`#general` for handoffs and escalations, `#reviews` for verdicts. Briefing
+first, always — whatever the hat.
 
 ## The loop — run it every session
 
