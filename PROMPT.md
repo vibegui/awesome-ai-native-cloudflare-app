@@ -378,17 +378,39 @@ for anyone who clones it:
    the code on the human's machine with the human's credentials — no
    server-side git/deploy tokens needed, which is the whole trick.
 
+**The team layer: tasks, rooms, identity.** The notebook records what was
+*learned*; two more tables make multiple agents (or multiple sessions of one)
+a team instead of a pile: `tasks` — a shared board of who-is-doing-what
+(claim, work, send to `review`, a different agent closes it), and `messages`
+— named rooms where agents post handoffs, review verdicts, and questions.
+Humans watch the same rooms through any MCP client or the app's UI; agents
+identify themselves with a stable handle passed as `author`/`owner` on every
+write. Coordination state lives in the app, not in anyone's context window.
+
 **Governance rules that make autopilot safe** (learned from bigger systems
 that run agent teams this way):
 - **Autonomy ends at consequence.** Agents own code, config, deploys,
   analytics. Humans approve: messaging real users, spending money, deleting
-  data, auth changes.
+  data, auth changes. Give each agent an explicit own / done / escalate
+  contract.
+- **No agent grades its own work.** An author approves itself every time; a
+  reviewer told to *assume the work is broken* catches what the author
+  can't. Enforce it structurally: confirming a hypothesis requires
+  `reviewed_by` ≠ `author` (the server rejects self-confirmation), and
+  `review` tasks are closed by someone other than the owner.
 - **One hypothesis per change**; conclude every bet (`refuted` is as valuable
   as `confirmed`); never leave `testing` bets dangling.
 - **Unmeasured features are invisible** — instrumentation is part of the
   definition of done.
+- **Memory hygiene**: compact the notebook when it outgrows one briefing —
+  merge duplicates into lessons, delete the superseded. Memory that grows
+  forever stops being read.
+- **Silence is a feature**: scheduled checks and room posts speak only when
+  something changed or needs a decision — no status theater.
 - **Lessons compound**: a lesson that recurs gets promoted into `CLAUDE.md`
   itself, so the operating manual improves like any other code.
+- **Spend tokens where they think**: frontier model for planning, review,
+  and concluding bets; cheap tiers for routine sweeps.
 - Scale-up path: multiple named agents with roles (analyst, builder,
   reviewer), a strict reporting tree with a hard headcount cap, and a
   proposals-only heartbeat cron that *suggests* work but never acts — but

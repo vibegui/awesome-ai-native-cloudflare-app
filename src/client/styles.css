@@ -56,6 +56,29 @@ h1 {
   margin: 0 0 0.75rem;
 }
 
+h2 {
+  font-size: 1rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.tab {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.8rem;
+}
+
+.tab.active {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
 .pills {
   display: flex;
   gap: 0.5rem;

@@ -60,7 +60,7 @@ export const IMPROVE_TOOLS: ToolDef[] = [
       const goals = await env.DB.prepare("SELECT * FROM goals WHERE status = 'active'").all<GoalRow>();
       const goalsWithProgress = await Promise.all(goals.results.map((g) => goalProgress(env, g)));
 
-      const [metrics, traffic, hypotheses, memories] = await Promise.all([
+      const [metrics, traffic, hypotheses, memories, tasks, messages, memoryCount] = await Promise.all([
         env.DB.prepare(
           "SELECT name, COUNT(*) AS events, SUM(value) AS value FROM events WHERE ts >= ? GROUP BY name ORDER BY events DESC LIMIT 25",
         )
@@ -75,6 +75,11 @@ export const IMPROVE_TOOLS: ToolDef[] = [
           "SELECT * FROM hypotheses WHERE status IN ('proposed', 'testing') ORDER BY updated_at DESC LIMIT 20",
         ).all(),
         env.DB.prepare("SELECT * FROM memories ORDER BY created_at DESC LIMIT 10").all(),
+        env.DB.prepare(
+          "SELECT * FROM tasks WHERE status IN ('pending', 'in_progress', 'review') ORDER BY updated_at DESC LIMIT 20",
+        ).all(),
+        env.DB.prepare("SELECT * FROM messages ORDER BY created_at DESC LIMIT 15").all(),
+        env.DB.prepare("SELECT COUNT(*) AS n FROM memories").first<{ n: number }>(),
       ]);
 
       return {
@@ -82,12 +87,16 @@ export const IMPROVE_TOOLS: ToolDef[] = [
         metrics7d: metrics.results,
         traffic7d: traffic,
         openHypotheses: hypotheses.results,
+        openTasks: tasks.results,
+        recentRoomMessages: messages.results,
         recentMemories: memories.results,
+        memoryCount: memoryCount?.n ?? 0,
         guidance:
-          "Loop: 1) conclude any 'testing' hypotheses using metrics_query (confirmed/refuted + " +
-          "a lesson memory_write); 2) pick the proposed hypothesis with the highest goal impact, " +
-          "or create one from an observation; 3) implement it in code, instrument it with " +
-          "track(), deploy; 4) hypothesis_update to 'testing' and memory_write the decision.",
+          "Loop: 1) conclude any 'testing' hypotheses using metrics_query (confirmed needs a " +
+          "reviewer that isn't the author); 2) claim or create ONE task tied to the highest-" +
+          "impact proposed hypothesis; 3) implement it in code, instrument it with track(), " +
+          "deploy; 4) hypothesis_update to 'testing', task_update to review/done, memory_write " +
+          "the decision, room_post a short handoff note. Compact memories when memoryCount > 30.",
       };
     },
   },
@@ -189,6 +198,7 @@ export const IMPROVE_TOOLS: ToolDef[] = [
         kind: { type: "string", enum: ["observation", "decision", "result", "lesson"] },
         content: { type: "string" },
         goal_id: { type: "string", description: "Related goal (optional)" },
+        author: { type: "string", description: "Your agent handle (e.g. 'claude-main')" },
       },
       required: ["kind", "content"],
     },
@@ -198,17 +208,35 @@ export const IMPROVE_TOOLS: ToolDef[] = [
         kind: String(input.kind),
         content: String(input.content),
         goal_id: input.goal_id ? String(input.goal_id) : null,
+        author: input.author ? String(input.author) : null,
         created_at: Date.now(),
       };
       if (!["observation", "decision", "result", "lesson"].includes(memory.kind)) {
         throw new Error("kind must be observation | decision | result | lesson");
       }
       await env.DB.prepare(
-        "INSERT INTO memories (id, kind, content, goal_id, created_at) VALUES (?, ?, ?, ?, ?)",
+        "INSERT INTO memories (id, kind, content, goal_id, author, created_at) VALUES (?, ?, ?, ?, ?, ?)",
       )
-        .bind(memory.id, memory.kind, memory.content, memory.goal_id, memory.created_at)
+        .bind(memory.id, memory.kind, memory.content, memory.goal_id, memory.author, memory.created_at)
         .run();
       return { created: memory };
+    },
+  },
+  {
+    name: "memory_delete",
+    description:
+      "Delete a memory by id. Used during compaction: merge duplicates into one lesson, then " +
+      "delete the stale/superseded entries. Keep the notebook readable in one briefing.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string" } },
+      required: ["id"],
+    },
+    async execute(env, input) {
+      const result = await env.DB.prepare("DELETE FROM memories WHERE id = ?")
+        .bind(String(input.id))
+        .run();
+      return { deleted: result.meta.changes === 1 };
     },
   },
   {
@@ -255,6 +283,7 @@ export const IMPROVE_TOOLS: ToolDef[] = [
         goal_id: { type: "string", description: "Goal this serves (optional)" },
         expected_metric: { type: "string", description: "Event name expected to move" },
         expected_delta: { type: "string", description: "Expected effect, e.g. '+20% in 7d'" },
+        author: { type: "string", description: "Your agent handle — confirming later requires a DIFFERENT reviewer" },
       },
       required: ["statement"],
     },
@@ -266,11 +295,12 @@ export const IMPROVE_TOOLS: ToolDef[] = [
         statement: String(input.statement),
         expected_metric: input.expected_metric ? String(input.expected_metric) : null,
         expected_delta: input.expected_delta ? String(input.expected_delta) : null,
+        author: input.author ? String(input.author) : null,
         status: "proposed",
       };
       await env.DB.prepare(
-        `INSERT INTO hypotheses (id, goal_id, statement, expected_metric, expected_delta, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO hypotheses (id, goal_id, statement, expected_metric, expected_delta, author, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(
           hypothesis.id,
@@ -278,6 +308,7 @@ export const IMPROVE_TOOLS: ToolDef[] = [
           hypothesis.statement,
           hypothesis.expected_metric,
           hypothesis.expected_delta,
+          hypothesis.author,
           hypothesis.status,
           now,
           now,
@@ -290,13 +321,16 @@ export const IMPROVE_TOOLS: ToolDef[] = [
     name: "hypothesis_update",
     description:
       "Move a hypothesis through its lifecycle (proposed → testing → confirmed|refuted|abandoned) " +
-      "and/or append evidence. Concluding one should come with a 'result' or 'lesson' memory.",
+      "and/or append evidence. RULE: no agent grades its own work — setting status to " +
+      "'confirmed' requires reviewed_by, a different handle than the author, after an " +
+      "adversarial review that tried to refute the metric interpretation.",
     inputSchema: {
       type: "object",
       properties: {
         id: { type: "string" },
         status: { type: "string", enum: ["proposed", "testing", "confirmed", "refuted", "abandoned"] },
         evidence: { type: "string", description: "Appended (timestamped) to the evidence log" },
+        reviewed_by: { type: "string", description: "Reviewer handle — required to confirm, must differ from author" },
       },
       required: ["id"],
     },
@@ -304,14 +338,28 @@ export const IMPROVE_TOOLS: ToolDef[] = [
       const id = String(input.id);
       const existing = await env.DB.prepare("SELECT * FROM hypotheses WHERE id = ?")
         .bind(id)
-        .first<{ evidence: string }>();
+        .first<{ evidence: string; author: string | null; reviewed_by: string | null }>();
       if (!existing) throw new Error(`unknown hypothesis: ${id}`);
 
       const sets: string[] = ["updated_at = ?"];
       const binds: unknown[] = [Date.now()];
+      if (input.reviewed_by) {
+        sets.push("reviewed_by = ?");
+        binds.push(String(input.reviewed_by));
+      }
       if (input.status) {
         if (!["proposed", "testing", "confirmed", "refuted", "abandoned"].includes(String(input.status))) {
           throw new Error("invalid status");
+        }
+        if (input.status === "confirmed") {
+          const reviewer = input.reviewed_by ? String(input.reviewed_by) : existing.reviewed_by;
+          if (!reviewer || (existing.author && reviewer === existing.author)) {
+            throw new Error(
+              "confirming requires reviewed_by set to a handle DIFFERENT from the author — " +
+              "run an adversarial review (assume the conclusion is wrong: confounders, " +
+              "seasonality, the deploy itself) in a separate session/subagent first",
+            );
+          }
         }
         sets.push("status = ?");
         binds.push(String(input.status));
@@ -343,6 +391,183 @@ export const IMPROVE_TOOLS: ToolDef[] = [
         : env.DB.prepare("SELECT * FROM hypotheses ORDER BY updated_at DESC LIMIT 100");
       const { results } = await stmt.all();
       return { hypotheses: results };
+    },
+  },
+  {
+    name: "task_create",
+    description:
+      "Create a task on the shared board. Tasks are WHO-is-doing-WHAT (the notebook records " +
+      "what was learned). Tie implementation tasks to their hypothesis.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        subject: { type: "string", description: "Imperative, e.g. 'Ship share button on card page'" },
+        description: { type: "string" },
+        owner: { type: "string", description: "Agent handle claiming it now (optional)" },
+        goal_id: { type: "string" },
+        hypothesis_id: { type: "string" },
+        created_by: { type: "string", description: "Your agent handle" },
+      },
+      required: ["subject"],
+    },
+    async execute(env, input) {
+      const now = Date.now();
+      const task = {
+        id: crypto.randomUUID(),
+        subject: String(input.subject),
+        description: String(input.description ?? ""),
+        status: input.owner ? "in_progress" : "pending",
+        owner: input.owner ? String(input.owner) : null,
+        goal_id: input.goal_id ? String(input.goal_id) : null,
+        hypothesis_id: input.hypothesis_id ? String(input.hypothesis_id) : null,
+        created_by: input.created_by ? String(input.created_by) : null,
+      };
+      await env.DB.prepare(
+        `INSERT INTO tasks (id, subject, description, status, owner, goal_id, hypothesis_id, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(
+          task.id,
+          task.subject,
+          task.description,
+          task.status,
+          task.owner,
+          task.goal_id,
+          task.hypothesis_id,
+          task.created_by,
+          now,
+          now,
+        )
+        .run();
+      return { created: task };
+    },
+  },
+  {
+    name: "task_update",
+    description:
+      "Claim a task (set owner + in_progress), move it through pending → in_progress → review " +
+      "→ done, or cancel it. Send finished work to 'review' — the reviewer moves it to 'done'.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string" },
+        status: { type: "string", enum: ["pending", "in_progress", "review", "done", "cancelled"] },
+        owner: { type: "string", description: "Agent handle taking ownership" },
+        description: { type: "string", description: "Replace the description" },
+      },
+      required: ["id"],
+    },
+    async execute(env, input) {
+      const sets: string[] = ["updated_at = ?"];
+      const binds: unknown[] = [Date.now()];
+      if (input.status) {
+        if (!["pending", "in_progress", "review", "done", "cancelled"].includes(String(input.status))) {
+          throw new Error("invalid status");
+        }
+        sets.push("status = ?");
+        binds.push(String(input.status));
+      }
+      if (input.owner) {
+        sets.push("owner = ?");
+        binds.push(String(input.owner));
+      }
+      if (input.description !== undefined) {
+        sets.push("description = ?");
+        binds.push(String(input.description));
+      }
+      binds.push(String(input.id));
+      const result = await env.DB.prepare(`UPDATE tasks SET ${sets.join(", ")} WHERE id = ?`)
+        .bind(...binds)
+        .run();
+      if (result.meta.changes !== 1) throw new Error(`unknown task: ${input.id}`);
+      return await env.DB.prepare("SELECT * FROM tasks WHERE id = ?").bind(String(input.id)).first();
+    },
+  },
+  {
+    name: "task_list",
+    description: "List tasks, optionally filtered by status and/or owner. Open tasks first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["pending", "in_progress", "review", "done", "cancelled"] },
+        owner: { type: "string" },
+      },
+    },
+    async execute(env, input) {
+      const conditions: string[] = [];
+      const binds: unknown[] = [];
+      if (input.status) {
+        conditions.push("status = ?");
+        binds.push(String(input.status));
+      }
+      if (input.owner) {
+        conditions.push("owner = ?");
+        binds.push(String(input.owner));
+      }
+      const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+      const { results } = await env.DB.prepare(
+        `SELECT * FROM tasks ${where}
+         ORDER BY CASE status WHEN 'review' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'pending' THEN 2 ELSE 3 END,
+                  updated_at DESC
+         LIMIT 100`,
+      )
+        .bind(...binds)
+        .all();
+      return { tasks: results };
+    },
+  },
+  {
+    name: "room_post",
+    description:
+      "Post a message to a room — the shared space where agents converse and humans watch. " +
+      "Rooms are created by first use ('general', 'reviews', 'growth'…). Post handoffs, review " +
+      "verdicts, and questions here. Stay silent when nothing changed: no status theater.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        room: { type: "string", description: "Room name, e.g. 'general'" },
+        author: { type: "string", description: "Your agent handle" },
+        content: { type: "string" },
+      },
+      required: ["room", "author", "content"],
+    },
+    async execute(env, input) {
+      const message = {
+        id: crypto.randomUUID(),
+        room: String(input.room).toLowerCase().slice(0, 64),
+        author: String(input.author).slice(0, 64),
+        content: String(input.content).slice(0, 4000),
+        created_at: Date.now(),
+      };
+      await env.DB.prepare(
+        "INSERT INTO messages (id, room, author, content, created_at) VALUES (?, ?, ?, ?, ?)",
+      )
+        .bind(message.id, message.room, message.author, message.content, message.created_at)
+        .run();
+      return { posted: message };
+    },
+  },
+  {
+    name: "room_read",
+    description:
+      "Read room messages, newest first. Omit `room` to read across all rooms (each message " +
+      "carries its room). Also the human's window into agent conversations.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        room: { type: "string", description: "Room name (optional — omit for all rooms)" },
+        limit: { type: "number", description: "Default 30, max 200" },
+      },
+    },
+    async execute(env, input) {
+      const limit = Math.min(Math.max(Number(input.limit) || 30, 1), 200);
+      const stmt = input.room
+        ? env.DB.prepare(
+            `SELECT * FROM messages WHERE room = ? ORDER BY created_at DESC LIMIT ${limit}`,
+          ).bind(String(input.room).toLowerCase())
+        : env.DB.prepare(`SELECT * FROM messages ORDER BY created_at DESC LIMIT ${limit}`);
+      const { results } = await stmt.all();
+      return { messages: results };
     },
   },
 ];
