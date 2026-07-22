@@ -184,18 +184,16 @@ the app's UI inside the workspace. This is what "managed in deco studio as an
 MCP app" means — the studio is the admin console, the chat is the CLI, and
 your Worker stays a plain, portable Cloudflare deployment.
 
-**(b) Your app consumes studio agents.** The inverse: keep your Worker as a
-thin channel (say, WhatsApp I/O) and let a studio-hosted agent be the brain.
-The studio exposes an HTTP API (org-scoped API key): create a thread, POST a
-message addressed to an agent, then read the reply from the thread's SSE
-stream — accumulate `text-delta` chunks until `finish`. Production hardening
-that matters: **poll the durable thread transcript as a fallback** when the
-ephemeral stream stalls, and support human-in-the-loop — when the agent asks a
-question via its `user_ask` tool, relay it to the user and resume the run by
-patching the tool result back. Memory, tool access, and model choice then live
-in the studio, editable without redeploying your Worker.
+**Keep the dependency pointing one way.** Your app is the sovereign system;
+the studio (or any workspace) is a *client* looking in through `/mcp` — a
+window, never the brain. Resist the inverse pattern (your Worker calling a
+hosted agent API for its intelligence): it couples your uptime to someone
+else's, moves reasoning outside your version control, and turns a portable
+Worker into a satellite. Intelligence lives in your repo (prompts, manuals,
+agents you run) and your app stays fully functional if every workspace
+disconnects tomorrow.
 
-**(c) Your Worker as an MCP *client*.** To call other MCP servers from inside
+**(b) Your Worker as an MCP *client*.** To call other MCP servers from inside
 a Worker, use `@modelcontextprotocol/sdk` with one crucial substitution: the
 default ajv validator uses `new Function`, which workerd blocks. Construct
 clients with `jsonSchemaValidator: new CfWorkerJsonSchemaValidator()` (from
