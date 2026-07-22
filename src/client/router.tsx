@@ -5,22 +5,24 @@
 import { type ComponentType, useState } from "react";
 import { useMcpHostContext, useMcpState } from "./context";
 import { DashboardView } from "./views/dashboard";
-import { TeamView } from "./views/team";
+import { BoardView } from "./views/board";
+import { RoomsView } from "./views/rooms";
 
 const TOOL_PAGES: Record<string, ComponentType> = {
   get_status: DashboardView,
   list_notes: DashboardView,
   add_note: DashboardView,
-  task_list: TeamView,
-  task_create: TeamView,
-  task_update: TeamView,
-  room_read: TeamView,
-  room_post: TeamView,
+  task_list: BoardView,
+  task_create: BoardView,
+  task_update: BoardView,
+  room_read: RoomsView,
+  room_post: RoomsView,
 };
 
 const TABS: Array<{ label: string; component: ComponentType }> = [
   { label: "Dashboard", component: DashboardView },
-  { label: "Team", component: TeamView },
+  { label: "Rooms", component: RoomsView },
+  { label: "Board", component: BoardView },
 ];
 
 export function AppRouter() {

@@ -148,3 +148,151 @@ button.ghost {
   margin: 0.15rem 0 0;
   font-size: 0.85rem;
 }
+
+.company {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 6.5rem);
+}
+
+.controlbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.controlbar button {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 0.25rem 0.7rem;
+  cursor: pointer;
+}
+
+.controlbar button.warn {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pill.paused {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.pill.ok {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.control-last {
+  font-size: 0.75rem;
+}
+
+.rooms-nav {
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.feed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.25rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.msg {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  align-items: flex-start;
+}
+
+.msg.mine {
+  flex-direction: row-reverse;
+}
+
+.avatar {
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 50%;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.bubble {
+  background: color-mix(in srgb, var(--border) 40%, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.4rem 0.65rem;
+  max-width: 85%;
+}
+
+.msg.mine .bubble {
+  border-color: var(--accent);
+}
+
+.msg-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-size: 0.75rem;
+  margin-bottom: 0.15rem;
+}
+
+.bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.composer {
+  display: flex;
+  gap: 0.5rem;
+  padding-top: 0.6rem;
+}
+
+.composer input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+}
+
+.composer button {
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+.composer button:disabled {
+  opacity: 0.5;
+}
+
+.status {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+}
+
+.status-review {
+  color: var(--accent);
+}
+
+.status-in_progress {
+  color: var(--ok);
+}

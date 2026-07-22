@@ -62,8 +62,11 @@ queue, then open tasks, then (empty board) analysis. WIP limit: one
 hypothesis (chores exempt, say so). Rejection loop: reviewer rejects → task
 back to `in_progress` with the reason in `#reviews` → builder fixes → back to
 `review`; the same rejection twice becomes a CLAUDE.md edit. Rooms:
-`#general` for handoffs and escalations, `#reviews` for verdicts. Briefing
-first, always — whatever the hat.
+`#general` for handoffs and escalations, `#reviews` for verdicts; `#control`
+is the human's override channel — every briefing carries the latest directive
+(`control`, `paused`): if paused, claim and start nothing until a RESUME; any
+other directive there overrides the pull order. Briefing first, always —
+whatever the hat.
 
 ## The loop — run it every session
 

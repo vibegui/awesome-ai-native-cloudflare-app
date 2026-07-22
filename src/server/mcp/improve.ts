@@ -77,7 +77,7 @@ export const IMPROVE_TOOLS: ToolDef[] = [
       const goals = await env.DB.prepare("SELECT * FROM goals WHERE status = 'active'").all<GoalRow>();
       const goalsWithProgress = await Promise.all(goals.results.map((g) => goalProgress(env, g)));
 
-      const [metrics, traffic, hypotheses, memories, tasks, messages, memoryCount, budgetRows, spendRows] = await Promise.all([
+      const [metrics, traffic, hypotheses, memories, tasks, messages, memoryCount, budgetRows, spendRows, control] = await Promise.all([
         env.DB.prepare(
           "SELECT name, COUNT(*) AS events, SUM(value) AS value FROM events WHERE ts >= ? GROUP BY name ORDER BY events DESC LIMIT 25",
         )
@@ -103,9 +103,14 @@ export const IMPROVE_TOOLS: ToolDef[] = [
         )
           .bind(since7d)
           .all<{ agent: string; spent: number }>(),
+        env.DB.prepare(
+          "SELECT * FROM messages WHERE room = 'control' ORDER BY created_at DESC LIMIT 1",
+        ).first<{ author: string; content: string; created_at: number }>(),
       ]);
 
       return {
+        control: control ?? null,
+        paused: control ? /^pause/i.test(control.content) : false,
         goals: goalsWithProgress,
         metrics7d: metrics.results,
         traffic7d: traffic,
@@ -123,7 +128,7 @@ export const IMPROVE_TOOLS: ToolDef[] = [
           "reviewer that isn't the author); 2) claim or create ONE task tied to the highest-" +
           "impact proposed hypothesis; 3) implement it in code, instrument it with track(), " +
           "deploy; 4) hypothesis_update to 'testing', task_update to review/done, memory_write " +
-          "the decision, room_post a short handoff note, spend_report your session tokens. Compact memories when memoryCount > 30. Budgets are earned: efficiency (tokens per reviewed outcome) drives your allowance — see budget_status.",
+          "the decision, room_post a short handoff note, spend_report your session tokens. Compact memories when memoryCount > 30. Budgets are earned: efficiency (tokens per reviewed outcome) drives your allowance — see budget_status. OBEY control: if paused=true, claim/start nothing — reply in rooms only, wait for RESUME.",
       };
     },
   },
