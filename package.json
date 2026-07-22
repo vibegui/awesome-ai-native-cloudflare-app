@@ -1,0 +1,31 @@
+{
+  "name": "awesome-ai-native-cloudflare-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:worker": "vite build && wrangler dev --port 8787",
+    "build": "vite build",
+    "check": "tsc --noEmit",
+    "deploy": "vite build && wrangler deploy",
+    "deploy:dry": "vite build && wrangler deploy --dry-run",
+    "db:local": "wrangler d1 migrations apply app-db --local",
+    "db:remote": "wrangler d1 migrations apply app-db --remote"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.1.2",
+    "hono": "^4.9.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250620.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0",
+    "vite-plugin-singlefile": "^2.2.0",
+    "wrangler": "^4.30.0"
+  }
+}

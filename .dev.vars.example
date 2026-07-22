@@ -1,0 +1,16 @@
+# Copy to .dev.vars for local dev. In production: `wrangler secret put <NAME>`.
+# NEVER commit .dev.vars.
+
+# Shared secret gating /mcp. Generate one: openssl rand -hex 32
+MCP_AUTH_TOKEN=dev-token-change-me
+
+# --- LLM (pick one path, see src/server/ai/gateway.ts) ---
+# AI Gateway unified billing ("compat" mode):
+CF_AI_GATEWAY_TOKEN=
+# Or bring your own OpenRouter key ("openrouter" mode):
+OPENROUTER_API_KEY=
+
+# --- WhatsApp (Meta Cloud API) — optional, only for the webhook path ---
+META_ACCESS_TOKEN=
+META_APP_SECRET=
+META_VERIFY_TOKEN=any-string-you-also-paste-into-meta-dashboard

@@ -1,0 +1,45 @@
+// One Worker = the whole app: REST-ish routes, MCP server, WhatsApp webhook,
+// and the built SPA (inlined as a string via the Text rule below).
+//
+// Resource names have no ids on purpose — `wrangler d1 create` / `wrangler kv
+// namespace create` print ids you paste in, or let Wrangler provision on first
+// deploy. Never commit account ids or namespace ids to a public repo.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "awesome-ai-native-cloudflare-app",
+  "main": "src/server/main.ts",
+  "compatibility_date": "2025-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // Load-bearing trick: import markdown prompts and the built single-file SPA
+  // directly into the Worker bundle as strings.
+  "rules": [
+    { "type": "Text", "globs": ["**/*.md", "dist/web/*.html"], "fallthrough": true }
+  ],
+
+  // Non-secret config. Secrets (tokens, keys) go in `.dev.vars` locally and
+  // `wrangler secret put` in production — never here.
+  "vars": {
+    "LLM_PROVIDER": "openrouter",
+    "LLM_MODEL": "anthropic/claude-sonnet-4.5",
+    "AI_GATEWAY_ACCOUNT_ID": "",
+    "AI_GATEWAY_NAME": "",
+    "META_API_VERSION": "v23.0",
+    "META_PHONE_NUMBER_ID": ""
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "app-db",
+      "database_id": "REPLACE_WITH_OUTPUT_OF_wrangler_d1_create",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "kv_namespaces": [
+    { "binding": "THREADS", "id": "REPLACE_WITH_OUTPUT_OF_wrangler_kv_namespace_create" },
+    { "binding": "DEDUPE", "id": "REPLACE_WITH_OUTPUT_OF_wrangler_kv_namespace_create" }
+  ]
+}
