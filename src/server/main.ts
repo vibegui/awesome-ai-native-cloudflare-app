@@ -10,7 +10,7 @@
 import { Hono } from "hono";
 import type { Env } from "./env";
 import { requireMcpAuth } from "./lib/auth";
-import { requestCountry, track, visitorHash } from "./lib/track";
+import { requestCountry, requestDims, track, visitorHash } from "./lib/track";
 import { appHtml } from "./mcp/resources";
 import { handleMcp } from "./mcp/server";
 import { webhook } from "./routes/webhook";
@@ -44,10 +44,13 @@ app.post("/e", async (c) => {
       await track(c.env, name, {
         value: typeof body.value === "number" && Number.isFinite(body.value) ? body.value : 1,
         path: typeof body.path === "string" ? body.path.slice(0, 256) : undefined,
-        dims:
-          body.dims && typeof body.dims === "object"
+        // server-side dims win over anything the client claims
+        dims: {
+          ...(body.dims && typeof body.dims === "object"
             ? (body.dims as Record<string, string | number | boolean>)
-            : undefined,
+            : {}),
+          ...requestDims(request),
+        },
         visitor: await visitorHash(c.env, request),
         country: requestCountry(request),
       });
@@ -58,16 +61,18 @@ app.post("/e", async (c) => {
 
 app.get("/", (c) => {
   const request = c.req.raw;
+  const response = c.html(appHtml);
   c.executionCtx.waitUntil(
     (async () => {
       await track(c.env, "pageview", {
         path: "/",
         visitor: await visitorHash(c.env, request),
         country: requestCountry(request),
+        dims: requestDims(request, response),
       });
     })(),
   );
-  return c.html(appHtml);
+  return response;
 });
 
 export default {

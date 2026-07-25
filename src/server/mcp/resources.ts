@@ -11,6 +11,13 @@ const MIME = "text/html;profile=mcp-app";
 
 export const RESOURCES = [
   {
+    uri: "ui://app/analytics",
+    name: "Traffic",
+    description:
+      "Cross-filtering traffic dashboard: daily series by event, plus pages, countries, referrers, status, cache, browsers, devices, networks.",
+    mimeType: MIME,
+  },
+  {
     uri: "ui://app/dashboard",
     name: "Dashboard",
     description: "Notes dashboard and app status.",

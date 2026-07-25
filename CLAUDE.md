@@ -111,7 +111,12 @@ whatever the hat.
   `review` tasks are a second pair of eyes' job, under a different handle.
 - **One hypothesis per change.** If a diff serves two bets, split it.
 - **Never invent numbers.** Every claim about behavior comes from
-  `metrics_query`. No data → instrument first, conclude in a later session.
+  `metrics_query` or `analytics_overview`. No data → instrument first,
+  conclude in a later session.
+- **Bots are not traffic.** A path that does not exist answers 404 and is
+  recorded as `blocked`, never `pageview`: scanning stays visible in
+  `analytics_overview` (filter `name=blocked`) without inflating visitors.
+  Check `device=bot` before celebrating a traffic spike.
 - **Memory hygiene.** When `memoryCount` passes ~30, spend part of the
   session compacting: merge duplicates into one `lesson`, `memory_delete`
   the superseded entries. A notebook nobody can read in one briefing is

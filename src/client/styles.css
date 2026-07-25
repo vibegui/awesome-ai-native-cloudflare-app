@@ -296,3 +296,205 @@ button.ghost {
 .status-in_progress {
   color: var(--ok);
 }
+
+/* Traffic view (views/analytics.tsx).
+   Categorical slots validated for CVD separation, chroma and contrast against
+   both surfaces with the dataviz palette validator — do not hand-tweak. */
+:root {
+  --series-1: #3e8558;
+  --series-2: #4573c4;
+  --series-3: #c2502f;
+  --series-4: #8a5fc8;
+  --series-5: #8f7a10;
+  --series-other: #8b8f98;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --series-1: #42a065;
+    --series-2: #5d86de;
+    --series-3: #e06a45;
+    --series-4: #a878e0;
+    --series-5: #ab8c35;
+    --series-other: #7c828c;
+  }
+}
+
+button.pill {
+  font: inherit;
+  font-size: 0.8rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.pill.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: transparent;
+}
+.pill.filter {
+  border-style: dashed;
+}
+.stat-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin: 0.9rem 0;
+}
+.stat-row .stat {
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 8.5rem;
+  padding: 0.7rem 0.9rem;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-bottom-width: 3px;
+  border-radius: 0.55rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.stat-row .stat.static {
+  cursor: default;
+}
+.stat-row .stat.active {
+  border-bottom-color: var(--accent);
+}
+.stat-row .stat strong {
+  font-size: 1.6rem;
+  line-height: 1.1;
+}
+.stat-row .stat span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.chart-wrap {
+  position: relative;
+}
+.legend {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+.legend button {
+  font: inherit;
+  font-size: 0.75rem;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.legend i,
+.chart-tip i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  margin-right: 0.3rem;
+  vertical-align: -1px;
+}
+.chart {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.chart .grid {
+  stroke: var(--border);
+  stroke-dasharray: 2 4;
+}
+.chart .baseline {
+  stroke: var(--border);
+}
+.chart .axis {
+  fill: var(--muted);
+  font-size: 10px;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+}
+.chart .hit {
+  fill: transparent;
+}
+.chart-tip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: var(--bg);
+  pointer-events: none;
+  z-index: 2;
+}
+.chart-tip em {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+}
+.panel h3 {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0 0 0.4rem;
+}
+.panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.panel-row {
+  position: relative;
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.35rem 0.5rem;
+  margin-bottom: 3px;
+  border: 0;
+  border-radius: 0.35rem;
+  font: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  overflow: hidden;
+}
+.panel-row[aria-pressed="true"] {
+  outline: 1px solid var(--accent);
+}
+.panel-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 0.35rem;
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+}
+.panel-row:hover .panel-fill {
+  background: color-mix(in oklab, var(--accent) 22%, transparent);
+}
+.panel-label {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-row strong {
+  position: relative;
+  font-variant-numeric: tabular-nums;
+}

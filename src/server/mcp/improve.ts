@@ -9,6 +9,7 @@
 // The app provides the senses (metrics), the compass (goals), and the
 // notebook (memory); the agent provides the intelligence. See CLAUDE.md.
 import type { Env } from "../env";
+import { analyticsOverview, DIMENSIONS, type Dimension } from "../lib/analytics";
 import type { ToolDef } from "./tools";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -63,7 +64,53 @@ async function spent7d(env: Env, agent: string): Promise<number> {
   return row?.spent ?? 0;
 }
 
+// Every dimension of the event stream is both a ranking and a filter, so the
+// traffic view cross-filters: click a country, the pages and referrers follow,
+// the country list stays whole.
+const DIM_DESC: Record<Dimension, string> = {
+  name: "event name (pageview, wa_message, blocked…)",
+  path: "request path",
+  country: "country, 2-letter ISO code",
+  ref: "referrer hostname, or '(direct)'",
+  status: "HTTP status of the response",
+  cache: "cf-cache-status when available",
+  browser: "browser derived from the user agent (Chrome, Safari, Bot…)",
+  os: "operating system (macOS, iOS, Windows…)",
+  device: "device class (desktop | mobile | tablet | bot)",
+  asn: "visitor network: ASN + organization (e.g. 'AS15169 GOOGLE')",
+  ip: "visitor IP range (/24 on v4, /48 on v6)",
+  colo: "Cloudflare colo that served it (e.g. GRU)",
+};
+
 export const IMPROVE_TOOLS: ToolDef[] = [
+  {
+    name: "analytics_overview",
+    _meta: { ui: { resourceUri: "ui://app/analytics" } },
+    description:
+      "Traffic dashboard over the event stream: totals, a daily series stacked by event name, " +
+      "and rankings for path, country, referrer, HTTP status, cache, browser, OS, device, ASN, " +
+      "IP range and colo. Every dimension doubles as a filter and each ranking ignores its own " +
+      "filter, so dimensions cross-filter each other.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        days: { type: "number", description: "Trailing window in days (1-90, default 7)" },
+        ...Object.fromEntries(
+          DIMENSIONS.map((dim) => [
+            dim,
+            { type: "string", description: `Filter by ${DIM_DESC[dim]}` },
+          ]),
+        ),
+      },
+    },
+    async execute(env, input) {
+      const query: Record<string, unknown> = { days: Number(input.days) || undefined };
+      for (const dim of DIMENSIONS) {
+        if (typeof input[dim] === "string" && input[dim]) query[dim] = input[dim];
+      }
+      return analyticsOverview(env, query);
+    },
+  },
   {
     name: "get_briefing",
     description:

@@ -7,6 +7,7 @@
     "dev:worker": "vite build && wrangler dev --port 8787",
     "build": "vite build",
     "check": "tsc --noEmit",
+    "test": "bun test",
     "deploy": "vite build && wrangler deploy",
     "deploy:dry": "vite build && wrangler deploy --dry-run",
     "db:local": "wrangler d1 migrations apply app-db --local",

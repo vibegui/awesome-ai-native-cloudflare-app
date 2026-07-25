@@ -4,6 +4,7 @@
 // switch views manually (e.g. to watch the agents' rooms). No router library.
 import { type ComponentType, useState } from "react";
 import { useMcpHostContext, useMcpState } from "./context";
+import { AnalyticsView } from "./views/analytics";
 import { DashboardView } from "./views/dashboard";
 import { BoardView } from "./views/board";
 import { RoomsView } from "./views/rooms";
@@ -12,6 +13,7 @@ const TOOL_PAGES: Record<string, ComponentType> = {
   get_status: DashboardView,
   list_notes: DashboardView,
   add_note: DashboardView,
+  analytics_overview: AnalyticsView,
   task_list: BoardView,
   task_create: BoardView,
   task_update: BoardView,
@@ -21,6 +23,7 @@ const TOOL_PAGES: Record<string, ComponentType> = {
 
 const TABS: Array<{ label: string; component: ComponentType }> = [
   { label: "Dashboard", component: DashboardView },
+  { label: "Traffic", component: AnalyticsView },
   { label: "Rooms", component: RoomsView },
   { label: "Board", component: BoardView },
 ];

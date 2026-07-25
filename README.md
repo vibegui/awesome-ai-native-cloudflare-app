@@ -38,7 +38,10 @@ views with your own.
 ## Self-improving by design
 
 The app measures itself (first-party analytics in D1 — no GA/PostHog: a
-`track()` helper, a `POST /e` beacon, cookieless daily-hash uniques) and
+`track()` helper, a `POST /e` beacon, cookieless daily-hash uniques, and the
+dimensions Cloudflare's own dashboard shows — status, cache, browser/OS/device,
+ASN, colo, IP *range*, referrer — on a cross-filtering `analytics_overview`
+screen) and
 exposes **goals, memory, and hypotheses as MCP tools**. Connect Claude Code to
 the deployed app (`.mcp.json` — set `APP_MCP_URL` / `APP_MCP_TOKEN`), and
 `CLAUDE.md` turns any session into an improvement cycle:
