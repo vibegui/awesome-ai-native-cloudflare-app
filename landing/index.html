@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The $5 AI-Native Stack</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="One Cloudflare Worker that is your site, your MCP server, your WhatsApp bot and your agent team's control plane. $5 a month. Cheaper than Vercel + Supabase, and it scales out instead of up.">
+<meta name="theme-color" content="#f2f3f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1015" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a receipt is the thesis. Hero pairs the claim with the itemized $5 bill;
+   everything after is evidence — comparison bars to scale, the parts, the loop. */
+:root {
+  --bg: #f2f3f6;
+  --surface: #ffffff;
+  --ink: #12151c;
+  --muted: #5a6273;
+  --line: #d8dce4;
+  --accent: #d9620b;      /* Cloudflare orange, darkened for contrast on light */
+  --accent-soft: #fbe6d4;
+  --rival: #8b93a3;       /* competitor bars: neutral, never red */
+  --good: #1d7a4f;
+  --code-bg: #171b23;
+  --code-ink: #e6e9ef;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --step--1: clamp(0.82rem, 0.8rem + 0.1vw, 0.88rem);
+  --step-0: clamp(1rem, 0.96rem + 0.2vw, 1.08rem);
+  --step-1: clamp(1.2rem, 1.1rem + 0.5vw, 1.45rem);
+  --step-2: clamp(1.6rem, 1.3rem + 1.4vw, 2.4rem);
+  --step-3: clamp(2.3rem, 1.6rem + 3.4vw, 4.4rem);
+  --radius: 14px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --surface: #161a22; --ink: #e8ebf1; --muted: #98a1b2; --line: #2a303b;
+    --accent: #ff8a3d; --accent-soft: #3a2415; --rival: #5f6778; --good: #4cc38a;
+    --code-bg: #090b0f; --code-ink: #e6e9ef; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --surface: #161a22; --ink: #e8ebf1; --muted: #98a1b2; --line: #2a303b;
+  --accent: #ff8a3d; --accent-soft: #3a2415; --rival: #5f6778; --good: #4cc38a;
+  --code-bg: #090b0f; --code-ink: #e6e9ef; color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body {
+  margin: 0; font-family: var(--body); font-size: var(--step-0); line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+section { padding-block: clamp(56px, 8vw, 104px); }
+section + section { border-top: 1px solid var(--line); }
+h1, h2, h3 { font-family: var(--display); line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: -0.02em; }
+h2 { font-size: var(--step-2); font-weight: 700; max-width: 22ch; }
+h3 { font-size: var(--step-1); font-weight: 700; letter-spacing: -0.01em; }
+p { margin: 0; }
+.eyebrow {
+  font-family: var(--mono); font-size: var(--step--1); text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--accent); font-weight: 600;
+}
+.lede { color: var(--muted); max-width: 62ch; font-size: var(--step-1); line-height: 1.5; }
+.head { display: grid; gap: 14px; margin-bottom: clamp(32px, 5vw, 56px); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* nav */
+nav { padding-block: 18px; }
+nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.brand { font-family: var(--display); font-weight: 800; font-size: 1.1rem; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+.brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: var(--bg); display: grid; place-items: center; font-family: var(--mono); font-size: 0.8rem; font-weight: 600; }
+.nav-links { display: flex; gap: 20px; font-size: var(--step--1); color: var(--muted); flex-wrap: wrap; }
+.nav-links a { text-decoration: none; }
+.nav-links a:hover { color: var(--ink); }
+
+/* hero */
+.hero { padding-block: clamp(32px, 6vw, 72px) clamp(56px, 8vw, 96px); border-top: 0; }
+.hero .wrap { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: clamp(32px, 5vw, 72px); align-items: center; }
+.hero h1 { font-size: var(--step-3); font-weight: 800; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.hero-copy { display: grid; gap: 24px; min-width: 0; }
+.ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px;
+  font-weight: 600; text-decoration: none; font-size: var(--step--1); border: 1px solid var(--line);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn-primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn-ghost { background: var(--surface); }
+.surfaces { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-family: var(--mono); font-size: 0.78rem; padding: 4px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+
+/* receipt */
+.receipt {
+  background: var(--surface); border-radius: 6px; padding: 28px 24px 0; font-family: var(--mono);
+  font-size: 0.8rem; line-height: 1.5; position: relative; min-width: 0;
+  box-shadow: 0 1px 0 var(--line), 0 24px 48px -24px rgb(0 0 0 / 0.25);
+  transform: rotate(1.2deg);
+}
+.receipt::after { /* torn edge */
+  content: ""; display: block; height: 14px; margin: 18px -24px 0;
+  background: radial-gradient(circle at 7px 14px, var(--bg) 7px, transparent 7.5px) 0 0 / 14px 14px repeat-x;
+}
+.r-head { text-align: center; display: grid; gap: 2px; padding-bottom: 14px; border-bottom: 1px dashed var(--line); }
+.r-head strong { font-size: 0.95rem; letter-spacing: 0.06em; }
+.r-head span { color: var(--muted); }
+.r-group { padding-block: 10px; border-bottom: 1px dashed var(--line); }
+.r-group > div { display: flex; justify-content: space-between; gap: 12px; }
+.r-group .lbl { color: var(--muted); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.08em; margin-bottom: 2px; }
+.r-group b { font-weight: 600; text-align: right; white-space: nowrap; }
+.r-total { display: flex; justify-content: space-between; align-items: baseline; padding-top: 14px; }
+.r-total span { text-transform: uppercase; letter-spacing: 0.08em; }
+.r-total strong { font-family: var(--display); font-size: 2.6rem; color: var(--accent); letter-spacing: -0.03em; }
+.r-foot { text-align: center; color: var(--muted); padding-top: 6px; font-size: 0.72rem; }
+
+/* architecture */
+.arch { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: stretch; }
+.arch-col { display: grid; gap: 10px; align-content: center; min-width: 0; }
+.arch-col .lbl { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.node { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 2px; }
+.node code { font-family: var(--mono); font-size: 0.82rem; color: var(--accent); }
+.node span { font-size: var(--step--1); color: var(--muted); }
+.worker {
+  border: 2px solid var(--accent); background: var(--accent-soft); border-radius: var(--radius);
+  padding: 24px 22px; display: grid; gap: 10px; align-content: center; text-align: center; min-width: 210px;
+}
+.worker strong { font-family: var(--display); font-size: 1.5rem; }
+.worker p { font-size: var(--step--1); color: var(--muted); max-width: 22ch; margin-inline: auto; }
+.bindings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+/* comparison */
+.scenarios { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.scenario { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; display: grid; gap: 18px; align-content: start; min-width: 0; }
+.scenario .assume { font-size: var(--step--1); color: var(--muted); }
+.bar-row { display: grid; gap: 6px; }
+.bar-meta { display: flex; justify-content: space-between; gap: 12px; font-size: var(--step--1); }
+.bar-meta strong { font-family: var(--display); font-size: 1.5rem; letter-spacing: -0.02em; }
+.bar { height: 14px; border-radius: 4px; background: var(--rival); min-width: 4px; }
+.bar.cf { background: var(--accent); }
+.verdict { font-family: var(--display); font-weight: 700; font-size: var(--step-1); }
+.verdict span { color: var(--accent); }
+details.math { font-size: var(--step--1); color: var(--muted); }
+details.math summary { cursor: pointer; color: var(--ink); font-weight: 600; }
+details.math table { margin-top: 10px; }
+
+.table-wrap { overflow-x: auto; margin-top: 40px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-family: var(--mono); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td.win { color: var(--good); font-weight: 600; }
+.math td, .math th { padding: 6px 8px; }
+.math td:first-child { font-weight: 400; white-space: normal; }
+.math td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sources { margin-top: 16px; font-size: 0.78rem; color: var(--muted); max-width: 90ch; }
+
+/* scale */
+.scale { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.ladder { display: grid; gap: 6px; font-family: var(--mono); font-size: 0.78rem; }
+.rung { display: grid; grid-template-columns: 54px 1fr 72px; gap: 10px; align-items: center; }
+.rung i { display: block; height: 10px; border-radius: 3px; background: var(--rival); }
+.rung span:last-child { text-align: right; }
+.flat { display: grid; gap: 12px; }
+.big { font-family: var(--display); font-size: var(--step-3); font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.big.cf { color: var(--accent); }
+.honest { margin-top: 20px; padding: 16px 18px; border-radius: 10px; border: 1px dashed var(--line); font-size: var(--step--1); color: var(--muted); }
+.honest strong { color: var(--ink); }
+
+/* loop */
+.loop { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; counter-reset: step; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.step { padding: 22px; display: grid; gap: 8px; align-content: start; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); counter-increment: step; min-width: 0; }
+.step:nth-child(3n) { border-right: 0; }
+.step:nth-last-child(-n+3) { border-bottom: 0; }
+.step::before { content: counter(step, decimal-leading-zero); font-family: var(--mono); font-size: 0.78rem; color: var(--accent); font-weight: 600; }
+.step code { font-family: var(--mono); font-size: 0.8rem; background: var(--bg); padding: 1px 6px; border-radius: 4px; }
+.step p { font-size: var(--step--1); color: var(--muted); }
+.hats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 40px; }
+.hat { display: grid; gap: 6px; align-content: start; padding-top: 14px; border-top: 2px solid var(--ink); min-width: 0; }
+.hat code { font-family: var(--mono); font-size: 0.85rem; color: var(--accent); font-weight: 600; }
+.hat p { font-size: var(--step--1); color: var(--muted); }
+.hat .never { color: var(--ink); }
+
+/* parts */
+.layer { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: clamp(20px, 4vw, 48px); padding-block: 36px; border-top: 1px solid var(--line); }
+.head + .layer { border-top: 0; padding-top: 0; }
+.layer-head { display: grid; gap: 8px; align-content: start; position: sticky; top: 16px; }
+.layer-head h3 { font-size: var(--step-1); }
+.layer-head p { font-size: var(--step--1); color: var(--muted); }
+.parts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.part { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; display: grid; grid-template-rows: auto auto 1fr auto auto; gap: 10px; min-width: 0; }
+.part-name { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.part-name strong { font-family: var(--display); font-size: 1.25rem; letter-spacing: -0.01em; }
+.part-name span { font-family: var(--mono); font-size: 0.72rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+.part .role { font-weight: 600; }
+.part p { font-size: var(--step--1); color: var(--muted); }
+.part .incl { font-family: var(--mono); font-size: 0.74rem; color: var(--ink); padding-top: 10px; border-top: 1px dashed var(--line); }
+.part pre { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--code-bg); color: var(--code-ink); font-family: var(--mono); font-size: 0.74rem; line-height: 1.5; overflow-x: auto; }
+
+/* start */
+.start .wrap { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: clamp(32px, 5vw, 64px); align-items: center; }
+.start .wrap > * { min-width: 0; }
+.term { background: var(--code-bg); color: var(--code-ink); border-radius: var(--radius); overflow: hidden; }
+.term-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid rgb(255 255 255 / 0.08); font-family: var(--mono); font-size: 0.72rem; color: #8b93a3; }
+.term pre { margin: 0; padding: 18px; overflow-x: auto; font-family: var(--mono); font-size: 0.82rem; line-height: 1.7; }
+.term .c { color: #7d8597; }
+.term .p { color: #ff8a3d; }
+.copy { font: inherit; color: var(--code-ink); background: rgb(255 255 255 / 0.08); border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.copy:hover { background: rgb(255 255 255 / 0.16); }
+
+footer { padding-block: 40px; border-top: 1px solid var(--line); font-size: var(--step--1); color: var(--muted); }
+footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .hero .wrap, .start .wrap, .scenarios, .scale { grid-template-columns: minmax(0, 1fr); }
+  .receipt { transform: none; max-width: 440px; }
+  .arch { grid-template-columns: minmax(0, 1fr); }
+  .worker { min-width: 0; }
+  .loop { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .step { border-right: 1px solid var(--line) !important; border-bottom: 1px solid var(--line) !important; }
+  .step:nth-child(2n) { border-right: 0 !important; }
+  .step:nth-last-child(-n+2) { border-bottom: 0 !important; }
+  .hats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .layer { grid-template-columns: minmax(0, 1fr); }
+  .layer-head { position: static; }
+}
+@media (max-width: 680px) {
+  .parts { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .loop, .hats, .bindings { grid-template-columns: minmax(0, 1fr); }
+  .step { border-right: 0 !important; border-bottom: 1px solid var(--line) !important; }
+  .step:last-child { border-bottom: 0 !important; }
+  .nav-links { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .receipt { animation: print 0.9s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes print { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#top"><span class="brand-mark">$5</span>AI-Native Stack</a>
+    <div class="nav-links">
+      <a href="#parts">The parts</a>
+      <a href="#compare">vs Vercel + Supabase</a>
+      <a href="#loop">The loop</a>
+      <a href="https://github.com/vibegui/awesome-ai-native-cloudflare-app">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-copy">
+      <p class="eyebrow">Open source · MIT · Cloudflare Workers</p>
+      <h1>A whole AI-native app that improves itself, for <em>$5</em> a month.</h1>
+      <p class="lede">One Worker is your website, your MCP server, your WhatsApp bot, your cron and the control plane your agent team works through. Agents read real metrics, file bets, ship code and review each other. You set the goals.</p>
+      <div class="surfaces">
+        <span class="chip">GET /</span><span class="chip">POST /mcp</span><span class="chip">/webhook</span><span class="chip">POST /e</span><span class="chip">scheduled()</span><span class="chip">queue()</span>
+      </div>
+      <div class="ctas">
+        <a class="btn btn-primary" href="https://github.com/vibegui/awesome-ai-native-cloudflare-app">Clone the starter</a>
+        <a class="btn btn-ghost" href="https://github.com/vibegui/awesome-ai-native-cloudflare-app/blob/main/PROMPT.md">Read the field guide</a>
+      </div>
+    </div>
+
+    <div class="receipt" aria-label="What the Workers Paid plan includes each month">
+      <div class="r-head">
+        <strong>WORKERS PAID</strong>
+        <span>monthly · per account · unlimited members</span>
+      </div>
+      <div class="r-group">
+        <div class="lbl">Compute</div>
+        <div><span>Requests</span><b class="num">10,000,000</b></div>
+        <div><span>CPU time</span><b class="num">30,000,000 ms</b></div>
+        <div><span>Static asset requests</span><b>unlimited</b></div>
+        <div><span>Bandwidth</span><b>$0.00</b></div>
+      </div>
+      <div class="r-group">
+        <div class="lbl">State</div>
+        <div><span>D1 rows read</span><b class="num">25,000,000,000</b></div>
+        <div><span>D1 rows written</span><b class="num">50,000,000</b></div>
+        <div><span>KV reads / writes</span><b class="num">10M / 1M</b></div>
+        <div><span>Durable Objects reqs</span><b class="num">1,000,000</b></div>
+        <div><span>Queues operations</span><b class="num">1,000,000</b></div>
+        <div><span>Workflow steps</span><b class="num">500,000</b></div>
+      </div>
+      <div class="r-group">
+        <div class="lbl">AI &amp; ops</div>
+        <div><span>Workers AI neurons</span><b class="num">10,000 / day</b></div>
+        <div><span>AI Gateway</span><b>included</b></div>
+        <div><span>Vectorize queried dims</span><b class="num">50,000,000</b></div>
+        <div><span>Browser Rendering</span><b class="num">10 h</b></div>
+        <div><span>Logs · cron · previews</span><b>included</b></div>
+      </div>
+      <div class="r-total"><span>Total</span><strong class="num">$5.00</strong></div>
+      <p class="r-foot">Next million requests: $0.30 · R2 egress: free</p>
+    </div>
+  </div>
+</section>
+
+<section id="shape">
+  <div class="wrap">
+    <div class="head">
+      <p class="eyebrow">One deploy unit</p>
+      <h2>Every surface is the same Worker.</h2>
+      <p class="lede">Business logic lives in plain functions. The website, the MCP tools, the WhatsApp pipeline and the cron all call the same ones. Push to <code>main</code> and it is live in about 30 seconds, in every Cloudflare city.</p>
+    </div>
+    <div class="arch">
+      <div class="arch-col">
+        <span class="lbl">Who calls it</span>
+        <div class="node"><code>GET /</code><span>People, in a browser</span></div>
+        <div class="node"><code>POST /mcp</code><span>Claude, ChatGPT, deco studio, any agent</span></div>
+        <div class="node"><code>/webhook</code><span>WhatsApp, straight to Meta's Cloud API</span></div>
+        <div class="node"><code>scheduled()</code><span>Cron: snapshots, pruning, reminders</span></div>
+      </div>
+      <div class="worker">
+        <strong>One Worker</strong>
+        <p>Hono router, ~150-line MCP server, single-file React UI that renders inside AI workspaces</p>
+      </div>
+      <div class="arch-col">
+        <span class="lbl">What it holds</span>
+        <div class="bindings">
+          <div class="node"><code>D1</code><span>SQL, analytics, the board</span></div>
+          <div class="node"><code>KV</code><span>Threads, snapshots</span></div>
+          <div class="node"><code>R2</code><span>Files, zero egress</span></div>
+          <div class="node"><code>Durable Objects</code><span>Rooms, live sockets</span></div>
+          <div class="node"><code>AI Gateway</code><span>Every LLM, one bill</span></div>
+          <div class="node"><code>Workflows</code><span>Long jobs that retry</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="parts">
+  <div class="wrap">
+    <div class="head">
+      <p class="eyebrow">The parts</p>
+      <h2>Everything an AI app needs, already wired to the same Worker.</h2>
+      <p class="lede">Each product is a binding: one line in <code>wrangler.jsonc</code>, then a typed object on <code>env</code>. No SDK to install, no connection string, no second vendor to sign up for. These are the ones we reach for, and what the $5 plan covers before any usage charge.</p>
+    </div>
+
+    <div class="layer">
+      <div class="layer-head">
+        <p class="eyebrow">Compute</p>
+        <h3>Where the code runs</h3>
+        <p>V8 isolates in every Cloudflare city. No containers to size, no regions to pick.</p>
+      </div>
+      <div class="parts">
+        <div class="part">
+          <div class="part-name"><strong>Workers</strong><span>runtime</span></div>
+          <p class="role">The whole app in one deploy unit.</p>
+          <p>Serves the site, the MCP server and the webhooks from one <code>fetch</code> handler, plus <code>scheduled</code> for cron and <code>queue</code> for consumers. Static assets ride along for free.</p>
+          <pre>export default { fetch: app.fetch, scheduled, queue }</pre>
+          <p class="incl num">$5: 10M requests · 30M CPU-ms · assets unlimited</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>Workflows</strong><span>durable jobs</span></div>
+          <p class="role">Multi-step agent runs that survive failures.</p>
+          <p>Each step is checkpointed and retried on its own, so a report that makes five LLM calls repeats only the one that failed. Put one paid call per step.</p>
+          <pre>await step.do("summarize", () =&gt; llm(page))</pre>
+          <p class="incl num">$5: 500k steps · 1 GB state</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>Queues</strong><span>async</span></div>
+          <p class="role">Ack the webhook now, think later.</p>
+          <p>WhatsApp gives you 20 seconds. Push the message on a queue, answer 200, and let a consumer run the slow agent loop with retries and batching.</p>
+          <pre>await env.JOBS.send({ phone, text })</pre>
+          <p class="incl num">$5: 1M operations · then $0.40/M</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>Cron Triggers</strong><span>schedule</span></div>
+          <p class="role">The agent's heartbeat.</p>
+          <p>Build expensive snapshots ahead of visitors, prune analytics, send reminders. Same Worker, same bindings, one line of config.</p>
+          <pre>"triggers": { "crons": ["*/5 * * * *"] }</pre>
+          <p class="incl">$5: included</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-head">
+        <p class="eyebrow">State</p>
+        <h3>Where memory lives</h3>
+        <p>Pick by access pattern. Most apps start with D1 and KV and never need more.</p>
+      </div>
+      <div class="parts">
+        <div class="part">
+          <div class="part-name"><strong>D1</strong><span>SQL</span></div>
+          <p class="role">Relational data, analytics and the agent board.</p>
+          <p>SQLite with numbered migrations. Holds users, events, goals, hypotheses and tasks. Costs nothing while idle, so one database per customer is a real option.</p>
+          <pre>await env.DB.prepare("SELECT * FROM goals").all()</pre>
+          <p class="incl num">$5: 25B rows read · 50M written · 5 GB · 50k databases</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>KV</strong><span>key-value</span></div>
+          <p class="role">Chat threads, snapshots, dedupe keys.</p>
+          <p>Read-heavy and global. Conversation turns keyed by user and day with a TTL give an assistant long-term memory with no schema at all.</p>
+          <pre>await env.THREADS.put(key, turns, { expirationTtl })</pre>
+          <p class="incl num">$5: 10M reads · 1M writes · 1 GB</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>R2</strong><span>objects</span></div>
+          <p class="role">Files, audio, screenshots, the RAG corpus.</p>
+          <p>S3-compatible storage with no egress fee, ever. Voice notes, generated images and the markdown your AI Search index reads all live here.</p>
+          <pre>await env.FILES.put(`audio/${id}.ogg`, req.body)</pre>
+          <p class="incl num">Free tier: 10 GB · then $0.015/GB · egress $0</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>Durable Objects</strong><span>coordination</span></div>
+          <p class="role">One live object per room, agent or document.</p>
+          <p>A single-threaded instance with its own SQLite, addressed by name. Chat rooms, presence, WebSocket hubs and per-agent sessions, hibernating when idle.</p>
+          <pre>env.ROOM.get(env.ROOM.idFromName(roomId))</pre>
+          <p class="incl num">$5: 1M requests · 400k GB-s · 5 GB SQLite</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-head">
+        <p class="eyebrow">AI</p>
+        <h3>Where the thinking happens</h3>
+        <p>Frontier models through one gateway, small models on Cloudflare's GPUs, retrieval without vector plumbing.</p>
+      </div>
+      <div class="parts">
+        <div class="part">
+          <div class="part-name"><strong>AI Gateway</strong><span>LLM proxy</span></div>
+          <p class="role">Every model call goes through one URL.</p>
+          <p>Logs, caching, rate limits, retries and fallbacks in front of OpenRouter, Anthropic or OpenAI. Store provider keys in the gateway and the Worker holds no LLM secrets. Tag calls with metadata and the dashboard becomes your token analytics.</p>
+          <pre>gateway.ai.cloudflare.com/v1/{acct}/{gw}/openrouter</pre>
+          <p class="incl">Free on every plan</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>Workers AI</strong><span>inference</span></div>
+          <p class="role">Speech, embeddings and small models, no keys.</p>
+          <p>Transcribe a WhatsApp voice note with Whisper, embed text with bge-m3, classify or describe an image. Runs next to your Worker, billed in neurons.</p>
+          <pre>await env.AI.run("@cf/openai/whisper-large-v3-turbo", { audio })</pre>
+          <p class="incl num">10k neurons/day free · then $0.011 per 1k</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>AI Search</strong><span>RAG</span></div>
+          <p class="role">Point it at an R2 bucket, get retrieval.</p>
+          <p>Chunking, embedding, indexing and re-syncing are managed. Upload markdown, then search from the Worker. No vector database to run.</p>
+          <pre>await env.AI.autorag("docs").search({ query })</pre>
+          <p class="incl">Built on R2 + Vectorize + Workers AI</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>Vectorize</strong><span>vectors</span></div>
+          <p class="role">Your own embeddings, when you need control.</p>
+          <p>Similarity search over vectors you compute yourself: product matching, memory recall, dedupe. Metadata filters included.</p>
+          <pre>await env.VECTORS.query(embedding, { topK: 5 })</pre>
+          <p class="incl num">$5: 50M queried dims · 10M stored dims</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>Browser Rendering</strong><span>headless</span></div>
+          <p class="role">Agents that can see the web.</p>
+          <p>Headless Chrome driven by Playwright or Puppeteer from inside the Worker. Screenshots, scraping and audits, results saved to R2.</p>
+          <pre>const browser = await launch(env.BROWSER)</pre>
+          <p class="incl num">$5: 10 browser-hours · 10 concurrent</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>MCP</strong><span>protocol</span></div>
+          <p class="role">The app's API is an agent's toolbox.</p>
+          <p>A ~150-line JSON-RPC server at <code>/mcp</code> exposes the same functions the UI calls. Claude, ChatGPT and deco studio can operate the app, and its UI renders inside them.</p>
+          <pre>{ "method": "tools/call", "params": { "name": "get_briefing" } }</pre>
+          <p class="incl">Plain code in the Worker</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-head">
+        <p class="eyebrow">Edge &amp; ops</p>
+        <h3>What keeps it safe and shipped</h3>
+        <p>The parts you would otherwise buy from three more vendors.</p>
+      </div>
+      <div class="parts">
+        <div class="part">
+          <div class="part-name"><strong>Rate Limiting</strong><span>abuse</span></div>
+          <p class="role">A per-caller budget in front of every paid call.</p>
+          <p>Key it on the visitor's IP or user id. Anything that triggers an LLM call gets a limit before it reaches the model.</p>
+          <pre>const { success } = await env.LIMIT.limit({ key: ip })</pre>
+          <p class="incl">Binding, no extra service</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>Turnstile &amp; Access</strong><span>identity</span></div>
+          <p class="role">Bot checks without CAPTCHAs, admin pages without auth code.</p>
+          <p>Turnstile verifies a human before a vote or a signup. Access puts Google login in front of any route; the Worker verifies the signed token.</p>
+          <pre>await verifyAccessJwt(req, env.ACCESS_AUD)</pre>
+          <p class="incl">Turnstile free · Access free to 50 users</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>Workers Builds</strong><span>deploy</span></div>
+          <p class="role">Push is deploy, every PR gets a URL.</p>
+          <p>Connect the GitHub repo once. <code>main</code> goes to production in about 30 seconds; branches get preview URLs; rollback is one click.</p>
+          <pre>git push origin main</pre>
+          <p class="incl">Included</p>
+        </div>
+        <div class="part">
+          <div class="part-name"><strong>Observability</strong><span>logs</span></div>
+          <p class="role">Structured logs and first-party analytics.</p>
+          <p>Workers Logs for every invocation, and a <code>track()</code> helper writing events to D1 so agents can query real usage over MCP. No third-party analytics script.</p>
+          <pre>"observability": { "enabled": true }</pre>
+          <p class="incl num">$5: 20M log events</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="compare">
+  <div class="wrap">
+    <div class="head">
+      <p class="eyebrow">vs Vercel + Supabase</p>
+      <h2>Same app. One bill is nine times the other, then twenty.</h2>
+      <p class="lede">The usual pair is a Vercel Pro seat for the frontend and functions plus Supabase Pro for the database. Here is the same workload priced on list rates, with every assumption shown.</p>
+    </div>
+
+    <div class="scenarios">
+      <div class="scenario">
+        <h3>Launch</h3>
+        <p class="assume">1 developer · 10M requests/month · under 1 TB transfer · 1 database</p>
+        <div class="bar-row">
+          <div class="bar-meta"><span>Cloudflare Workers Paid</span><strong class="num">$5</strong></div>
+          <div class="bar cf" style="width: 11.1%"></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-meta"><span>Vercel Pro + Supabase Pro</span><strong class="num">$45</strong></div>
+          <div class="bar" style="width: 100%"></div>
+        </div>
+        <p class="verdict"><span>9×</span> cheaper before you have a single user.</p>
+        <details class="math">
+          <summary>Show the math</summary>
+          <table>
+            <tr><td>Vercel Pro, 1 seat (includes $20 usage credit)</td><td>$20</td></tr>
+            <tr><td>10M invocations × $0.60/M, covered by credit</td><td>$0</td></tr>
+            <tr><td>Supabase Pro (Micro instance, 1 GB RAM)</td><td>$25</td></tr>
+            <tr><td>Cloudflare: everything above is inside the plan</td><td>$5</td></tr>
+          </table>
+        </details>
+      </div>
+
+      <div class="scenario">
+        <h3>Traction</h3>
+        <p class="assume">3 developers · 100M requests/month · 5 TB transfer · 7 ms CPU per request</p>
+        <div class="bar-row">
+          <div class="bar-meta"><span>Cloudflare Workers Paid</span><strong class="num">≈ $45</strong></div>
+          <div class="bar cf" style="width: 4.8%"></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-meta"><span>Vercel Pro + Supabase Pro</span><strong class="num">≈ $944</strong></div>
+          <div class="bar" style="width: 100%"></div>
+        </div>
+        <p class="verdict"><span>21×</span> cheaper, and bandwidth is most of the gap.</p>
+        <details class="math">
+          <summary>Show the math</summary>
+          <table>
+            <tr><th colspan="2">Cloudflare</th></tr>
+            <tr><td>Plan</td><td>$5.00</td></tr>
+            <tr><td>90M extra requests × $0.30/M</td><td>$27.00</td></tr>
+            <tr><td>670M extra CPU-ms × $0.02/M</td><td>$13.40</td></tr>
+            <tr><td>5 TB transfer, 3 seats</td><td>$0.00</td></tr>
+            <tr><th colspan="2">Vercel + Supabase</th></tr>
+            <tr><td>3 Pro seats × $20, minus $20 credit</td><td>$40.00</td></tr>
+            <tr><td>90M extra edge requests × $2/M</td><td>$180.00</td></tr>
+            <tr><td>100M invocations × $0.60/M</td><td>$60.00</td></tr>
+            <tr><td>194 h active CPU × $0.128</td><td>$24.89</td></tr>
+            <tr><td>4,096 GB extra transfer × $0.15</td><td>$614.40</td></tr>
+            <tr><td>Supabase Pro</td><td>$25.00</td></tr>
+            <tr><td>Provisioned memory (not counted)</td><td>+ more</td></tr>
+          </table>
+        </details>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Line item</th><th>Cloudflare $5 plan</th><th>Vercel Pro</th><th>Supabase Pro</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Base price</td><td class="win">$5 per account</td><td>$20 per developer seat</td><td>$25 per org</td></tr>
+          <tr><td>Team members</td><td class="win">Free, unlimited</td><td>$20 each</td><td>Included</td></tr>
+          <tr><td>Bandwidth</td><td class="win">$0 on Workers, $0 R2 egress</td><td>1 TB, then $0.15/GB</td><td>250 GB, then $0.09/GB</td></tr>
+          <tr><td>Requests</td><td class="win">10M, then $0.30/M</td><td>10M edge, then $2/M + $0.60/M invocations</td><td>2M edge functions, then $2/M</td></tr>
+          <tr><td>Database</td><td class="win">D1 5 GB, no instance, $0 when idle</td><td>Bring your own</td><td>8 GB on a 1 GB-RAM instance</td></tr>
+          <tr><td>Another database</td><td class="win">Free, up to 50,000 per account</td><td>n/a</td><td>Each project pays its own compute, from $10/mo</td></tr>
+          <tr><td>Realtime</td><td class="win">Durable Objects + WebSocket hibernation</td><td>Bring your own</td><td>500 connections, then $10 per 1,000</td></tr>
+          <tr><td>Queues · Workflows · cron</td><td class="win">Included</td><td>Cron included</td><td>pg_cron on your instance</td></tr>
+          <tr><td>LLM gateway · inference</td><td class="win">AI Gateway + 10k neurons/day</td><td>AI Gateway (separate billing)</td><td>Bring your own</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sources">List prices from cloudflare.com, vercel.com/pricing and supabase.com/pricing, checked 18 October 2026. Vercel rates are "starting at" and vary by region; we used the lowest. Traction scenario assumes every request runs a function and Vercel's provisioned-memory charge is left out, which favours Vercel. Your mix will differ: rerun the math with your own numbers.</p>
+  </div>
+</section>
+
+<section id="scale">
+  <div class="wrap">
+    <div class="head">
+      <p class="eyebrow">Scale out, not up</p>
+      <h2>There is no instance to outgrow.</h2>
+      <p class="lede">A Postgres instance has a size, a connection cap and a monthly price whether anyone visits or not. A Worker runs per request, and a D1 database or a Durable Object costs nothing while it sleeps. That turns "a database per customer" from a budget meeting into a design choice.</p>
+    </div>
+    <div class="scale">
+      <div class="scenario">
+        <h3>Supabase compute ladder</h3>
+        <p class="assume">Per project, per month. Pick a size, then pay for it 24/7.</p>
+        <div class="ladder">
+          <div class="rung"><span>Micro</span><i style="width: 0.5%"></i><span class="num">$10</span></div>
+          <div class="rung"><span>Small</span><i style="width: 0.6%"></i><span class="num">$15</span></div>
+          <div class="rung"><span>Medium</span><i style="width: 1.6%"></i><span class="num">$60</span></div>
+          <div class="rung"><span>Large</span><i style="width: 2.9%"></i><span class="num">$110</span></div>
+          <div class="rung"><span>XL</span><i style="width: 5.6%"></i><span class="num">$210</span></div>
+          <div class="rung"><span>2XL</span><i style="width: 11%"></i><span class="num">$410</span></div>
+          <div class="rung"><span>4XL</span><i style="width: 25.7%"></i><span class="num">$960</span></div>
+          <div class="rung"><span>8XL</span><i style="width: 50.1%"></i><span class="num">$1,870</span></div>
+          <div class="rung"><span>12XL</span><i style="width: 75.1%"></i><span class="num">$2,800</span></div>
+          <div class="rung"><span>16XL</span><i style="width: 100%"></i><span class="num">$3,730</span></div>
+        </div>
+        <p class="assume">Even 16XL tops out at 500 direct connections.</p>
+      </div>
+      <div class="scenario flat">
+        <h3>1,000 customers, one database each</h3>
+        <div>
+          <p class="assume">Supabase: 999 extra projects × $10 Micro compute + $25</p>
+          <p class="big num">$10,015</p>
+        </div>
+        <div>
+          <p class="assume">Cloudflare: 1,000 D1 databases, billed by rows touched</p>
+          <p class="big cf num">$5 + usage</p>
+        </div>
+        <div class="honest">
+          <strong>Where Postgres still wins:</strong> one relational database bigger than 10 GB (D1's per-database ceiling) or heavy cross-tenant joins. Keep it, and reach it through Hyperdrive. Everything else in the app can still live on the Worker.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="loop">
+  <div class="wrap">
+    <div class="head">
+      <p class="eyebrow">The model</p>
+      <h2>The app exposes its own metrics, and agents close the gap.</h2>
+      <p class="lede">Analytics, goals, memory, hypotheses, a task board and chat rooms are all MCP tools on the deployed Worker. Connect Claude Code with two committed files, <code>.mcp.json</code> and <code>CLAUDE.md</code>, and every session runs the same loop on your machine with your credentials. No server-side git tokens, no hosted brain.</p>
+    </div>
+    <div class="loop">
+      <div class="step"><h3>Brief</h3><p><code>get_briefing</code> returns goals with live progress, 7-day metrics, open bets, the board and the human's latest directive.</p></div>
+      <div class="step"><h3>Close old bets</h3><p>Every hypothesis in <code>testing</code> is checked against real numbers by a different agent, told to assume it is wrong.</p></div>
+      <div class="step"><h3>Pick one</h3><p>Review queue first, then open tasks, then the best proposed bet: "If we change X, metric Y moves, because Z."</p></div>
+      <div class="step"><h3>Build</h3><p>Edit the code for that one bet. Every new surface gets <code>track()</code>, or the next session can't see it.</p></div>
+      <div class="step"><h3>Ship</h3><p><code>bun run check</code>, tests, an adversarial diff review, deploy, then smoke-test production.</p></div>
+      <div class="step"><h3>Record</h3><p>Hypothesis to <code>testing</code>, task to <code>review</code>, a decision in memory, a handoff in <code>#general</code>.</p></div>
+    </div>
+    <div class="hats">
+      <div class="hat"><code>analyst</code><p>Reads metrics, writes observations, files and ranks bets.</p><p class="never">Never writes code.</p></div>
+      <div class="hat"><code>builder</code><p>Claims tasks, implements, instruments, deploys.</p><p class="never">Never grades its own work.</p></div>
+      <div class="hat"><code>reviewer</code><p>Assumes it's broken. The only hat that confirms or refutes.</p><p class="never">Never implements.</p></div>
+      <div class="hat"><code>ceo</code><p>Reallocates weekly token budgets by tokens per reviewer-closed task.</p><p class="never">Real money only from a human.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="start" id="start">
+  <div class="wrap">
+    <div class="head" style="margin-bottom: 0">
+      <p class="eyebrow">Start</p>
+      <h2>Clone, deploy, set three goals.</h2>
+      <p class="lede">Then open Claude Code in the repo and say "run the loop". The field guide works as a prompt too: paste it into any coding agent and describe your app.</p>
+      <div class="ctas">
+        <a class="btn btn-primary" href="https://github.com/vibegui/awesome-ai-native-cloudflare-app">Clone the starter</a>
+        <a class="btn btn-ghost" href="https://developers.cloudflare.com/workers/platform/pricing/">Cloudflare pricing</a>
+      </div>
+    </div>
+    <div class="term">
+      <div class="term-bar"><span>zsh</span><button class="copy" id="copy-quickstart" type="button">Copy</button></div>
+<pre id="quickstart"><span class="c"># one Worker: site + MCP + WhatsApp + cron</span>
+<span class="p">$</span> git clone https://github.com/vibegui/awesome-ai-native-cloudflare-app
+<span class="p">$</span> cd awesome-ai-native-cloudflare-app &amp;&amp; bun install
+<span class="p">$</span> bunx wrangler d1 create app-db
+<span class="p">$</span> bun run db:remote &amp;&amp; bun run deploy
+
+<span class="c"># point Claude Code at production</span>
+<span class="p">$</span> export APP_MCP_URL=https://&lt;your-worker&gt;.workers.dev/mcp
+<span class="p">$</span> export APP_MCP_TOKEN=&lt;MCP_AUTH_TOKEN&gt;
+<span class="p">$</span> claude "brief yourself and run the loop"</pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed · built on Cloudflare Workers, Hono and MCP</span>
+    <span>Prices checked 18 Oct 2026</span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const btn = document.getElementById("copy-quickstart");
+  const pre = document.getElementById("quickstart");
+  btn.addEventListener("click", () => {
+    const text = pre.innerText.split("\n").filter((l) => l.startsWith("$ ")).map((l) => l.slice(2)).join("\n");
+    navigator.clipboard.writeText(text).then(
+      () => { btn.textContent = "Copied"; setTimeout(() => (btn.textContent = "Copy"), 1500); },
+      () => { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    );
+  });
+})();
+</script>
+</body>
+</html>
