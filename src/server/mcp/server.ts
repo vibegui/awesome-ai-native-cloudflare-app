@@ -26,6 +26,12 @@ function replyError(id: JsonRpcRequest["id"], code: number, message: string): Re
 
 export async function handleMcp(request: Request, env: Env): Promise<Response> {
   if (request.method === "GET") {
+    // Streamable HTTP clients open GET with Accept: text/event-stream for a
+    // server stream. A finite 200 reads as a dropped stream and they reconnect
+    // forever (one client did 1.9M invocations in 12h); 405 means "no stream".
+    if (request.headers.get("accept")?.includes("text/event-stream")) {
+      return new Response("method not allowed", { status: 405, headers: { allow: "POST" } });
+    }
     // Human/debug-friendly descriptor. MCP itself is POST-only here.
     return Response.json({
       name: "awesome-ai-native-cloudflare-app",
@@ -47,7 +53,8 @@ export async function handleMcp(request: Request, env: Env): Promise<Response> {
   switch (rpc.method) {
     case "initialize":
       return reply(rpc.id, {
-        protocolVersion: PROTOCOL_VERSION,
+        // echo the client's version; some hosts drop servers that answer another
+        protocolVersion: (rpc.params?.protocolVersion as string | undefined) ?? PROTOCOL_VERSION,
         capabilities: { tools: {}, resources: {} },
         serverInfo: { name: "awesome-ai-native-cloudflare-app", version: "0.1.0" },
         instructions:
