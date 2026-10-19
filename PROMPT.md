@@ -58,6 +58,13 @@ once; humans get a UI, agents get the same tools, and every future AI surface
 | Cron | `triggers.crons` | `scheduled()` handler in the same Worker |
 | Deploy | **Workers Builds** | Connect the GitHub repo once; push = deploy, PR = preview URL |
 | Observability | `observability.enabled = true` | Structured logs in the dashboard, free |
+| Durable multi-step jobs | **Workflows** | One LLM call per `step.do`; minutes, not days (§11) |
+| Existing Postgres | **Hyperdrive** | Required for `pg` from Workers; create with `--caching-disabled` |
+| Headless browser | **Browser Rendering** | Playwright in the Worker; needs `enable_nodejs_fs_module` |
+| Abuse control | **Rate Limiting binding** + **Turnstile** | Per-IP limits in front of anything that costs money |
+| Human-only routes | **Cloudflare Access** | Verify the JWT signature *and* `aud`, never the email header |
+| Push notifications | Web Push over **Web Crypto** | VAPID + aes128gcm in plain code, no npm package |
+| "Is my deploy live?" | `version_metadata` binding | Its id changes every deploy; expose it at `/version` |
 
 **Decision rule for state:** ephemeral/conversational → KV with TTL;
 relational/queryable → D1; coordination/realtime → Durable Object; big or
@@ -141,6 +148,24 @@ uses, so an agent (or you, from the studio chat) can inspect threads, hot-swap
 the system prompt, send messages, and pull dashboards — with zero redeploys.
 Whatever admin page you were about to build, build it as MCP tools first.
 
+**What real hosts do to you** (each line cost a production incident):
+
+- `GET /mcp` with `Accept: text/event-stream` must answer **405**. A finite
+  200 reads as a dropped stream and the client reconnects forever — one did
+  1.9M invocations in 12 hours. Put `no-store` on every `/mcp` response.
+- `initialize` echoes the client's `protocolVersion`.
+- A public tier must allow `initialize` + `tools/list` without auth, or
+  ChatGPT can't install the app. A *wrong* token is a 401, never a silent
+  downgrade; a private tool called without rights is "unknown tool", not a
+  403 that confirms it exists.
+- Agents send `"100"` for numbers and `"true"` for booleans — coerce. Return
+  `hasMore`/`page` or the agent concludes "there is nothing older".
+- The Cache API never caches POST, and every MCP call is a POST. Cache tool
+  results under a hand-built key in `caches.default`, or each call hits the
+  upstream.
+- Put the agent's standing instructions in `initialize.instructions`; every
+  host reads it before the first tool call.
+
 ---
 
 ## 4. The UI: an app that renders inside the AI workspace
@@ -160,6 +185,12 @@ render it in a sandboxed iframe next to tool results. The bridge is
   plain `Record<string, Component>`. One bundle, many views, no router lib.
 - Respect `hostContext.safeAreaInsets` and host theme (`useHostStyles`).
 - Every resource read returns the same HTML; the URI is just an entry hint.
+- Hosts sandbox the iframe with `connect-src 'none'`. A WebSocket or fetch
+  to your own origin silently fails until the resource declares it in
+  `_meta.ui.csp.connectDomains` (an `https` origin also authorizes `wss`).
+- No `history.pushState` (opaque origin throws): navigation is a tool call.
+- OpenAI reads `text/html+skybridge`, deco studio `text/html;profile=mcp-app`
+  — publish both if you want both.
 
 **(b) Classic SPA via Workers Assets.** For a big standalone frontend, add
 `assets: { directory: "./dist", binding: "ASSETS", not_found_handling: "single-page-application" }`
@@ -433,7 +464,115 @@ that run agent teams this way):
 
 ---
 
-## 11. Build checklist for a new app
+## 11. Field notes: what production taught us
+
+Distilled from a dozen apps on this stack shipped in 2026 (a storefront
+indexer, a code search MCP, a satirical live feed, a report pipeline, a pet
+health agent, a RAG chatbot, a startup ranking migrated off Vercel+Postgres).
+Each rule is here because breaking it cost something real.
+
+**Write down the worst case before you ship anything that fetches.**
+Upstream calls per page view = items × sources × reads, *when every call
+fails*. Above ~20, redesign. Every network loop gets a per-item cap and a
+total budget; `continue` on failure inside an unbounded loop is a fan-out
+bomb. Shared, expensive data is built ahead by cron into one KV snapshot,
+served stale-while-revalidate, never computed on a visitor's request. Cache
+failures briefly too, or every visit retries an upstream that is down.
+"Upstream failed" and "nothing found" are different results all the way to
+the user — and to the LLM, which will confidently say the store has nothing.
+
+**128 MB per isolate.** Never `await obj.text()` on a big R2 object — stream
+`obj.body` through `TextDecoderStream`. Never hold a large list in module
+scope (one KV key per redirect, not an array). Load big schemas on first
+use, not at boot. Exceeding it is error 1102 with no JS exception.
+
+**Cron is at-least-once.** Two overlapping runs double-send and double-pay
+for the model. Take a lease in D1 before reading anything — a deadline (240s
+on a 300s cron), not a mutex — and release it in `finally`; a dead run costs
+one skipped tick. Schedule by a buffer of `due_at` rows, not "time since
+last run", so a month-long pause and a 5-minute gap run the same code. To
+pause a cron set `"crons": []`; deleting the key leaves the old schedule live.
+
+**Workflows: one paid call per `step.do`**, each with its own timeout, so a
+retry repeats only what failed. Don't park a Workflow for days waiting on a
+human — deploys break long waits. Human waits are DB rows (a state machine);
+public triggers claim work with an atomic conditional `UPDATE` lease.
+
+**Caching will lie to you.** A MISS on `?gclid=` was stored under the clean
+URL; varying on a region header split the cache into 27 copies of every
+page. The zone cache ignores `Vary` — serve one content type per URL. The
+SPA fallback once got cached as immutable JS and blanked a site: reject the
+wrong MIME under `/assets/*` with `no-store`. With Workers Assets, list `/`
+in `run_worker_first` or the homepage never runs `track()`. Edge-cached HTML
+outlives a deploy by ~15 minutes.
+
+**Data.** D1 until it actually hurts — one app dropped Supabase for D1 and
+lost an external account, a pooler, an IPv6 trap, and three secrets.
+If you must use Postgres: Hyperdrive, the pooler host (direct `db.<ref>` is
+IPv6-only), no connection cached across requests, pools sized for the
+pooler's client cap. `wrangler d1 execute --command` has a size limit; insert
+in 500-row chunks. Persist the turn *before* sending the reply — six
+WhatsApp messages were lost to send-then-save. Live-collab editors must never
+save before their first sync, or a blocked socket overwrites the doc with
+emptiness.
+
+**LLM output is untrusted input.** Put a fail-closed guard between the model
+and the world: reject any number or entity not present in the source
+material (25% of one feed's messages invented an institution). Word-boundary
+matching, and remember JS `\b` is ASCII-only — it breaks Portuguese. Choose
+the model with a blind benchmark through the deployed pipeline (one picked a
+model scoring 96.6 at 1/38 of Sonnet's cost per turn), pin it in a test, and
+measure `usage.cost` per turn, not list prices. Meter every paid provider at
+its single fetch point. `max_tokens` too low starves reasoning models into
+empty strings — treat empty as an error, retry once.
+
+**Our own services are first-party to each other.** One product's scraper
+defense blocklisted our own shop for a week. Service-to-service calls go
+over a service binding to a named `WorkerEntrypoint` the callee trusts, so
+the marker can't be forged from the internet. Every automatic block expires
+on its own and alerts somewhere a human looks.
+
+**Anything that triggers a paid call is rate-limited per caller** (Rate
+Limiting binding, keyed on `CF-Connecting-IP`; counts are per colo), and
+POST endpoints for your own pages check `Origin`/`sec-fetch-site`. Votes and
+other public writes: Turnstile, a one-use ticket in KV, a daily cap per IP
+that answers 200 with no effect. Cost caps live in vars that can only
+*lower* a hard limit in code.
+
+**Tag test traffic** (id prefix, header, `utm_source=test`) so analytics can
+exclude it, and remember bursts from your own machine trip the same
+auto-blocks real abusers do. **Measure in production before saying it's
+fixed**: replay the failing case, count the requests it caused, look at the
+screen. "It typechecks" was true for every bug above.
+
+---
+
+## 12. What $5 a month buys
+
+The Workers Paid plan is a $5/month minimum per account (unlimited team
+members) and includes, every month: 10M requests and 30M CPU-ms; static
+asset requests free and unlimited; KV (10M reads, 1M writes, 1 GB); D1 (25B
+rows read, 50M written, 5 GB); Durable Objects (1M requests, 400k GB-s,
+SQLite storage on the same terms as D1); Queues (1M ops); Workflows (500k
+steps); Vectorize (50M queried dimensions); Analytics Engine (10M points);
+Browser Rendering (10 hours); Containers (25 GiB-hours); Workers Logs (20M
+events); Hyperdrive unlimited. Plus, on every plan: 10k Workers AI neurons a
+day, AI Gateway, R2 with **zero egress** (10 GB free), cron triggers. No
+bandwidth bill on Worker responses. Overage is cents: $0.30 per extra
+million requests. Check the live numbers at
+developers.cloudflare.com/workers/platform/pricing before quoting them.
+
+For comparison, the usual "Vercel + Supabase" pair starts at $45/month for
+one developer ($20 per Vercel seat, $25 Supabase Pro with a 1 GB instance),
+then charges for bandwidth ($0.15/GB past 1 TB on Vercel, $0.09/GB past 250
+GB on Supabase), edge requests ($2 per million), and a fixed-price database
+instance per project. The structural difference: a D1 database or a Durable
+Object costs nothing while idle, so per-tenant databases (up to 50,000 per
+account) are a design option instead of a line item.
+
+---
+
+## 13. Build checklist for a new app
 
 ```
 [ ] bun create vite (React+TS) → collapse into the folder shape in §2
