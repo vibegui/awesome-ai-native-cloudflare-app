@@ -6,6 +6,9 @@ Workers**: one Worker that is simultaneously an HTTP app, an **MCP server**
 operate it), an embeddable **MCP-App UI**, and a **WhatsApp bot** — deployed
 by `git push` via Workers Builds.
 
+**Smallest version first:** [`examples/minimal`](./examples/minimal) is one
+~100-line file: a page plus an MCP server an agent drives from Claude Code.
+
 **Start with [PROMPT.md](./PROMPT.md)** — the master prompt / field guide.
 Read it yourself, or paste it into your AI coding agent (as `CLAUDE.md` or
 system context) and describe the app you want. The scaffold in this repo is

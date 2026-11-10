@@ -1,0 +1,7 @@
+{
+  "name": "minimal-notes",
+  "main": "worker.ts",
+  "compatibility_date": "2026-07-01",
+  // `bunx wrangler kv namespace create NOTES`, then paste the id here
+  "kv_namespaces": [{ "binding": "NOTES", "id": "<paste-id>" }]
+}
