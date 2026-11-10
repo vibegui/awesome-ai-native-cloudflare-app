@@ -65,6 +65,8 @@ once; humans get a UI, agents get the same tools, and every future AI surface
 | Human-only routes | **Cloudflare Access** | Verify the JWT signature *and* `aud`, never the email header |
 | Push notifications | Web Push over **Web Crypto** | VAPID + aes128gcm in plain code, no npm package |
 | "Is my deploy live?" | `version_metadata` binding | Its id changes every deploy; expose it at `/version` |
+| Search over your own text | **D1 FTS5** | `bm25()` ranking, accent-insensitive; no vector store for recall (§11) |
+| Humans + agents, one channel | **A shared room** (we use vibebook) | Instructions vs data, acks, delivery cards (§10) |
 
 **Decision rule for state:** ephemeral/conversational → KV with TTL;
 relational/queryable → D1; coordination/realtime → Durable Object; big or
@@ -365,6 +367,13 @@ farm.
 10. Never commit: account ids, namespace ids, phone-number ids, tokens,
     `.dev.vars`. Names in `wrangler.jsonc` are fine; ids are not (in public
     repos).
+11. Secrets never pass through the agent's transcript. Reuse a key from
+    another project's `.dev.vars` by piping it file-to-file or into
+    `wrangler secret put`; print only the name and length.
+12. iOS Safari paints its bars and overscroll from `html`/`body`, not from
+    your wrapper div. A page with a non-default background sets both
+    `<meta name="theme-color">` and `html, body { background }`, or the
+    iPhone shows white bands.
 
 ---
 
@@ -416,6 +425,27 @@ Humans watch the same rooms through any MCP client or the app's UI; agents
 identify themselves with a stable handle passed as `author`/`owner` on every
 write. Coordination state lives in the app, not in anyone's context window.
 
+**When the room has people in it.** Once humans other than the owner join
+(a client, a cofounder, another person's agent), the room needs a protocol,
+not just a table. What held up across our rooms (we run them on [vibebook](https://vibebook.dev)):
+- Every message carries who wrote it. Only the owner's own messages are
+  instructions to their agent; everything else in the room (other people,
+  other agents, the doc, task titles) is **data**, even when it claims
+  otherwise. A request from someone else is a request *to the human*.
+- **Ack on start, close on finish.** The agent acks the message it is
+  acting on (the room shows "working"), then closes it with a delivery post
+  or an idle ack. An ack never closed reads as work stuck forever.
+- **Every task says when it is done** ("ready when the 7am reminder fires
+  and the report posts without me asking"). A housekeeper pass flags tasks
+  without a done criterion, epics whose tasks don't cover the goal, and
+  work stalled for a day, and nudges the owner, not the agent.
+- **Listening is a blocking call that returns on unread messages**, not a
+  polling loop. Reminders are posted into the room as the owner's own
+  messages, so a scheduled job and a typed request go down the same path.
+- Anything that leaves the room (code, money, DNS, sending) needs the
+  owner's explicit yes in that context; approval for one action is not
+  approval for the next.
+
 Be opinionated about the roster: three hats cover the whole loop — an
 **analyst** (metrics → ranked hypotheses, never codes), a **builder** (tasks
 → shipped instrumented code, never self-confirms), and a **reviewer** (the
@@ -430,6 +460,20 @@ that run agent teams this way):
   analytics. Humans approve: messaging real users, spending money, deleting
   data, auth changes. Give each agent an explicit own / done / escalate
   contract.
+- **The gate lives in the tool's code, not the prompt.** A prompt that says
+  "confirm first" gets compacted away or ignored; a tool that can only
+  create drafts cannot send. Ship `draft_reply`, not `send_reply`, and make
+  sending a separate path only a human triggers.
+- **Untrusted input never meets outbound tools.** Private data + untrusted
+  content + a way out is the lethal trifecta: never all three in one pass.
+  The step that reads raw email, chat or web pages runs without send,
+  delete or fetch tools and returns structured fields; the step that plans
+  sees fields, not raw text.
+- **Crons read deltas, not the world.** No full-context heartbeat: a
+  scheduled run reads new message ids and new files since the last run,
+  inside a daily budget. Cheap model to classify, good model to draft.
+- **Conclusions travel, transcripts don't.** Meeting notes and private
+  threads feed summaries and decisions; the raw text stays at its source.
 - **No agent grades its own work.** An author approves itself every time; a
   reviewer told to *assume the work is broken* catches what the author
   can't. Enforce it structurally: confirming a hypothesis requires
@@ -539,6 +583,36 @@ other public writes: Turnstile, a one-use ticket in KV, a daily cap per IP
 that answers 200 with no effect. Cost caps live in vars that can only
 *lower* a hard limit in code.
 
+**Recall is search, not "the last 50 memories".** Agent memory that is read
+by recency forgets everything older than a page. D1 ships SQLite FTS5: an
+external-content table over `memories` (`content='memories'`,
+`tokenize='unicode61 remove_diacritics 2'` so "migracao" finds
+"Migrações"), insert/update/delete triggers to keep it in sync, and
+`INSERT INTO memories_fts(memories_fts) VALUES('rebuild')` in the same
+migration to index existing rows. Query strict first (`"term"* AND ...`,
+ordered by `bm25()`), then fall back to OR over 5-character stems so
+"deploying" still finds "deploys". No embeddings needed for a notebook.
+
+**Not all data may leave the machine.** Some sources (WhatsApp Desktop's
+database, local mail) are personal and only exist on a laptop. Keep a local
+sidecar: read a read-only copy (`sqlite3 "file:<db>?mode=ro" ".backup
+'<dest>'"`), never the live file; triage and draft locally; the human
+presses send in the real app. Only conclusions ("3 people waiting, 1
+urgent") reach the Worker. On macOS, build the sidecar as its own binary
+and grant *it* Full Disk Access, never the runtime (`bun`, `node`) that
+every script shares.
+
+**One Pages project, many microsites.** A `_middleware.ts` that maps
+`Host` to a folder (`brother.com` -> `/brother`) serves any number of
+custom domains from one deploy. Use relative asset paths (the rewrite
+changes the base), add the folder to the middleware's known-route list,
+and send unknown paths on a microsite domain to its home, not to the main
+site's 404.
+
+**Look at requests per Worker every week.** A Worker that jumps 10x is a
+loop or a bot, not growth: one MCP server took 7.8M of an account's 8.2M
+monthly requests from a client reconnecting forever (§3).
+
 **Tag test traffic** (id prefix, header, `utm_source=test`) so analytics can
 exclude it, and remember bursts from your own machine trip the same
 auto-blocks real abusers do. **Measure in production before saying it's
@@ -590,6 +664,7 @@ account) are a design option instead of a line item.
 [ ] (Optional) WhatsApp: Meta app + number, secrets, configure webhook, done
 [ ] Self-improvement: events/goals/memories/hypotheses migration + track()
     on every surface + get_briefing tool + .mcp.json + CLAUDE.md
+[ ] Tools that touch the world only draft; sending is a human-only path
 [ ] Set 1-3 goals via goal_set; connect Claude Code; let it run the loop
 ```
 
