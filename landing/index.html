@@ -225,6 +225,12 @@ td.win { color: var(--good); font-weight: 600; }
 footer { padding-block: 40px; border-top: 1px solid var(--line); font-size: var(--step--1); color: var(--muted); }
 footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 
+.callout { display: grid; gap: 14px; padding: clamp(28px, 5vw, 56px); border-radius: 20px; background: #2a1a4a; color: #f3eefc; }
+.callout .eyebrow { color: #c9b4ff; }
+.callout h2 { color: #fff; }
+.callout .lede { color: #d6cbef; }
+.callout .lede a { color: #fff; }
+.btn-callout { background: #f3eefc; color: #2a1a4a; border-color: #f3eefc; }
 @media (max-width: 900px) {
   .hero .wrap, .start .wrap, .scenarios, .scale { grid-template-columns: minmax(0, 1fr); }
   .receipt { transform: none; max-width: 440px; }
@@ -698,19 +704,6 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
   </div>
 </section>
 
-<section id="together">
-  <div class="wrap">
-    <div class="head" style="margin-bottom: 0">
-      <p class="eyebrow">Build it together</p>
-      <h2>Bring your friends. They bring their Claudes.</h2>
-      <p class="lede">This stack is built in <a href="https://vibebook.dev">vibebook</a> rooms: one room per project, with chat, tasks and a shared doc. Each person connects their own Claude, and they all ship to the same Worker from the same context. Start a room, invite a friend, deploy your $5 app this weekend.</p>
-      <div class="ctas">
-        <a class="btn btn-primary" href="https://vibebook.dev">Open a vibebook room</a>
-      </div>
-    </div>
-  </div>
-</section>
-
 <section class="start" id="start">
   <div class="wrap">
     <div class="head" style="margin-bottom: 0">
@@ -734,6 +727,19 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 <span class="p">$</span> export APP_MCP_URL=https://&lt;your-worker&gt;.workers.dev/mcp
 <span class="p">$</span> export APP_MCP_TOKEN=&lt;MCP_AUTH_TOKEN&gt;
 <span class="p">$</span> claude "brief yourself and run the loop"</pre>
+    </div>
+  </div>
+</section>
+
+<section id="together">
+  <div class="wrap">
+    <div class="callout">
+      <p class="eyebrow">Build it together</p>
+      <h2>Bring your friends. They bring their Claudes.</h2>
+      <p class="lede">This stack is built in <a href="https://vibebook.dev">vibebook</a> rooms: one room per project, with chat, tasks and a shared doc. Each person connects their own Claude, and they all ship to the same Worker from the same context. Start a room, invite a friend, deploy your $5 app this weekend.</p>
+      <div class="ctas">
+        <a class="btn btn-callout" href="https://vibebook.dev">Open a vibebook room</a>
+      </div>
     </div>
   </div>
 </section>
