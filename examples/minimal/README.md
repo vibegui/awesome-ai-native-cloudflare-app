@@ -1,25 +1,35 @@
-# minimal: one file, one KV, an MCP server
+# minimal: one file, a chat agent, an admin, an MCP server
 
-The smallest app on this stack (`worker.ts`, ~100 lines): a notes page at `/`
-and an MCP server at `/mcp` with three tools. No framework, no SDK, no
-database migration. Start here; move to the full starter when you need D1,
-WhatsApp, a UI or the self-improvement loop.
+The smallest app on this stack: `worker.ts` (~250 lines), one KV namespace,
+no framework, no SDK.
+
+- **`/`** — your notes and a chat. Say "add a note saying buy coffee": a model
+  (any OpenRouter model, set in `wrangler.jsonc`) calls the app's own tools
+  and answers. The chat can list and add notes, never delete them.
+- **`/admin?token=…`** — every conversation: what was said, each tool call with
+  its arguments and result, and the reply. Kept 30 days.
+- **`/mcp`** — the same tools (plus `delete_note` and `list_conversations`)
+  for any agent. Claude Code connects through `.mcp.json`.
+
+One `TOOLS` list is the whole business logic; the chat, the admin and MCP
+are three clients of it. A new feature is one more entry.
 
 ```sh
-bunx wrangler kv namespace create NOTES     # paste the id into wrangler.jsonc
-bunx wrangler secret put MCP_AUTH_TOKEN     # any long random string
+bunx wrangler kv namespace create DATA       # paste the id into wrangler.jsonc
+bunx wrangler secret put MCP_AUTH_TOKEN      # any long random string
+bunx wrangler secret put OPENROUTER_API_KEY
 bunx wrangler deploy
 
 export NOTES_MCP_URL=https://minimal-notes.<you>.workers.dev/mcp
 export NOTES_MCP_TOKEN=<the token>
-claude "add a note saying hello, then open the page"
+claude "read the last conversations and tell me what people asked for"
 ```
 
-How the agent uses it: `.mcp.json` connects Claude Code to the deployed
-`/mcp`, so it can call `list_notes`, `add_note` and `delete_note` against
-production. `CLAUDE.md` tells it that a new feature is one more entry in
-`TOOLS`, then deploy and call it. Same loop as the full starter, minus
-everything else.
+Guardrails, small on purpose: the chat is rate-limited per IP (10/min) and
+refuses cross-site posts, the agent loop stops after 5 rounds, deleting is
+not a chat tool, `/mcp` and `/admin` fail closed without the token. For
+more than one owner, put `/admin` behind Cloudflare Access instead of a
+token in the URL.
 
-Local: `printf 'MCP_AUTH_TOKEN=dev\n' > .dev.vars && bunx wrangler dev`.
-Test: `bun test`.
+Local: put `MCP_AUTH_TOKEN` and `OPENROUTER_API_KEY` in `.dev.vars`, then
+`bunx wrangler dev`. Test: `bun test` (the model is stubbed).

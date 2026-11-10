@@ -7,7 +7,8 @@ operate it), an embeddable **MCP-App UI**, and a **WhatsApp bot** — deployed
 by `git push` via Workers Builds.
 
 **Smallest version first:** [`examples/minimal`](./examples/minimal) is one
-~100-line file: a page plus an MCP server an agent drives from Claude Code.
+file: a chat where a model calls the app's tools, an admin that shows
+every conversation and tool call, and an MCP server Claude Code drives.
 
 **Start with [PROMPT.md](./PROMPT.md)** — the master prompt / field guide.
 Read it yourself, or paste it into your AI coding agent (as `CLAUDE.md` or
