@@ -3,12 +3,17 @@
 A batteries-included starting point for **AI-native apps on Cloudflare
 Workers**: one Worker that is simultaneously an HTTP app, an **MCP server**
 (so AI agents and workspaces like [deco studio](https://decocms.com) can
-operate it), an embeddable **MCP-App UI**, and a **WhatsApp bot** — deployed
+operate it), an **admin UI** (shipped as an MCP App; the same React app
+works as a local tool, an `/admin` path or a subdomain behind Access), and a **WhatsApp bot** — deployed
 by `git push` via Workers Builds.
 
 What it is for: running an **AI services company**, selling the work instead
 of the tool, for $5 a month. [PROMPT.md §0](./PROMPT.md) says how to pick the
 work and price it; §12 has the product patterns from one running in production.
+
+**Smallest version first:** [`examples/minimal`](./examples/minimal) is one
+file: a chat where a model calls the app's tools, an admin that shows
+every conversation and tool call, and an MCP server Claude Code drives.
 
 **Start with [PROMPT.md](./PROMPT.md)** — the master prompt / field guide.
 Read it yourself, or paste it into your AI coding agent (as `CLAUDE.md` or
