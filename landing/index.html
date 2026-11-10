@@ -262,6 +262,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
       <a href="#parts">The parts</a>
       <a href="#compare">vs Vercel + Supabase</a>
       <a href="#loop">The loop</a>
+      <a href="#guardrails">Guardrails</a>
       <a href="https://github.com/vibegui/awesome-ai-native-cloudflare-app">GitHub</a>
     </div>
   </div>
@@ -677,6 +678,22 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
       <div class="hat"><code>builder</code><p>Claims tasks, implements, instruments, deploys.</p><p class="never">Never grades its own work.</p></div>
       <div class="hat"><code>reviewer</code><p>Assumes it's broken. The only hat that confirms or refutes.</p><p class="never">Never implements.</p></div>
       <div class="hat"><code>ceo</code><p>Reallocates weekly token budgets by tokens per reviewer-closed task.</p><p class="never">Real money only from a human.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="guardrails">
+  <div class="wrap">
+    <div class="head">
+      <p class="eyebrow">The guardrails</p>
+      <h2>The agent proposes. The code decides what it can't do.</h2>
+      <p class="lede">An agent that reads your email, your chats and your meetings is one injected sentence away from acting on them. Prompts get compacted and ignored, so the limits live in the tools themselves.</p>
+    </div>
+    <div class="hats">
+      <div class="hat"><code>draft, not send</code><p>Tools that touch the world only create drafts. Sending, deleting and paying are a separate path a human triggers.</p></div>
+      <div class="hat"><code>no trifecta</code><p>The step that reads untrusted text has no outbound tools. It returns fields; the planner never sees raw messages.</p></div>
+      <div class="hat"><code>deltas only</code><p>Crons read what's new since last run, on a daily budget. Conclusions travel; transcripts stay where they live.</p></div>
+      <div class="hat"><code>one room</code><p>People and agents share a room. Only the owner's messages are instructions; everything else is data. Every ack gets closed.</p></div>
     </div>
   </div>
 </section>
