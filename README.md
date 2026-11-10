@@ -3,7 +3,8 @@
 A batteries-included starting point for **AI-native apps on Cloudflare
 Workers**: one Worker that is simultaneously an HTTP app, an **MCP server**
 (so AI agents and workspaces like [deco studio](https://decocms.com) can
-operate it), an embeddable **MCP-App UI**, and a **WhatsApp bot** — deployed
+operate it), an **admin UI** (shipped as an MCP App; the same React app
+works as a local tool, an `/admin` path or a subdomain behind Access), and a **WhatsApp bot** — deployed
 by `git push` via Workers Builds.
 
 **Start with [PROMPT.md](./PROMPT.md)** — the master prompt / field guide.

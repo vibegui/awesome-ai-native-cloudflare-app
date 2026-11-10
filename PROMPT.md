@@ -24,8 +24,9 @@ simultaneously serves:
 
 - your **REST/HTML routes** (via Hono, a ~14kB router),
 - your **MCP server** (`/mcp`) — the app's tools, callable by any AI agent,
-- your **admin UI** — a React single-file bundle rendered *inside* the AI
-  workspace as an "MCP App",
+- your **admin UI**, wherever it suits you: a local-only tool, an `/admin`
+  path or `admin.` subdomain behind Cloudflare Access, or an "MCP App"
+  rendered inside an AI workspace — all thin clients over the same tools,
 - your **WhatsApp webhook** (or any other channel),
 - your **cron jobs** and **queue consumers**.
 
@@ -146,7 +147,7 @@ the whole security model for a single-tenant app, and it's enough.
 
 **The mindset shift:** the MCP endpoint is not an "integration" — it's your
 app's **live control plane**. Tools read and write the same KV/D1 the runtime
-uses, so an agent (or you, from the studio chat) can inspect threads, hot-swap
+uses, so an agent (or you, from whatever admin surface you picked) can inspect threads, hot-swap
 the system prompt, send messages, and pull dashboards — with zero redeploys.
 Whatever admin page you were about to build, build it as MCP tools first.
 
@@ -170,9 +171,22 @@ Whatever admin page you were about to build, build it as MCP tools first.
 
 ---
 
-## 4. The UI: an app that renders inside the AI workspace
+## 4. The admin UI: pick a surface, keep the tools
 
-Two complementary modes; the scaffold ships (a), big SPAs use (b):
+The tools are the admin. The screen is a thin client over them, and where
+it lives is a choice, not an architecture. Logic never goes in the page.
+
+| Surface | How | Pick it when |
+|---|---|---|
+| **Local only** | A script, `vite` dev server or desktop app on your machine calls production `/mcp` with the token from `.dev.vars` | One owner; nothing admin should exist on the internet |
+| **A path** | `/admin/*` on the same Worker, behind Cloudflare Access (verify the JWT signature *and* `aud`) | A few teammates, one deploy, zero auth code |
+| **A subdomain** | `admin.example.com` routed to the same Worker, its own Access policy | Keep admin cookies, cache rules and analytics apart from the public site |
+| **MCP App** | A `ui://` resource rendered inside an AI workspace (deco studio, Claude, ChatGPT); the host proxies tool calls | You already live in a chat workspace and want the screen next to the agent |
+
+Start with tools and chat; add a screen when it pays for itself. The
+scaffold ships (a) below because it needs no hosting of its own; (b) is the
+same React app served as a normal page, which covers the path, subdomain
+and local options:
 
 **(a) MCP App (single-file bundle).** Vite + `vite-plugin-singlefile` builds
 the whole React app into ONE `index.html` (all JS/CSS inlined). The Worker
@@ -202,7 +216,7 @@ breaks OAuth callbacks and every deep link).
 
 ---
 
-## 5. deco studio: manage the app as an MCP app
+## 5. AI workspaces: manage the app from deco studio (or any MCP host)
 
 [deco studio](https://decocms.com) (studio.decocms.com) is an open-source AI
 workspace: agents, chat threads, tool connections, and MCP-App rendering.
@@ -655,12 +669,14 @@ account) are a design option instead of a line item.
 [ ] Hono app: /healthz first, then routes
 [ ] mcp/server.ts + tools.ts: start with get_status; add one tool per feature
 [ ] Bearer auth on /mcp (fail closed)
-[ ] Client: ext-apps bridge + tool→view router + one dashboard view
+[ ] Admin surface: local-only, /admin or admin. behind Access, or MCP App
+    (ext-apps bridge + tool→view router) — same tools underneath
 [ ] D1 migration 0001 (or skip DB — KV might be all you need)
 [ ] wrangler d1/kv create → paste ids (keep them out of public repos)
 [ ] bun run check green; deploy once by hand: bun run deploy
 [ ] Connect repo to Workers Builds; push to main; verify preview URLs on PRs
-[ ] Register /mcp?token=... in deco studio; call a tool from chat
+[ ] (Optional) Register /mcp in an AI workspace (deco studio, Claude);
+    call a tool from chat
 [ ] (Optional) WhatsApp: Meta app + number, secrets, configure webhook, done
 [ ] Self-improvement: events/goals/memories/hypotheses migration + track()
     on every surface + get_briefing tool + .mcp.json + CLAUDE.md

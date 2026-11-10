@@ -356,7 +356,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
       </div>
       <div class="worker">
         <strong>One Worker</strong>
-        <p>Hono router, ~150-line MCP server, single-file React UI that renders inside AI workspaces</p>
+        <p>Hono router, ~150-line MCP server, and an admin UI wherever you want it: local, <code>/admin</code> behind Access, a subdomain, or inside an AI workspace</p>
       </div>
       <div class="arch-col">
         <span class="lbl">What it holds</span>
@@ -502,7 +502,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
         <div class="part">
           <div class="part-name"><strong>MCP</strong><span>protocol</span></div>
           <p class="role">The app's API is an agent's toolbox.</p>
-          <p>A ~150-line JSON-RPC server at <code>/mcp</code> exposes the same functions the UI calls. Claude, ChatGPT and deco studio can operate the app, and its UI renders inside them.</p>
+          <p>A ~150-line JSON-RPC server at <code>/mcp</code> exposes the same functions the UI calls. Claude, ChatGPT and deco studio can operate the app. The admin screen is just another client of those tools: run it locally, put it behind Access, or render it inside the workspace.</p>
           <pre>{ "method": "tools/call", "params": { "name": "get_briefing" } }</pre>
           <p class="incl">Plain code in the Worker</p>
         </div>
