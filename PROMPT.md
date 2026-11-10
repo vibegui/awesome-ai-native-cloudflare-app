@@ -427,7 +427,7 @@ write. Coordination state lives in the app, not in anyone's context window.
 
 **When the room has people in it.** Once humans other than the owner join
 (a client, a cofounder, another person's agent), the room needs a protocol,
-not just a table. What held up across our rooms (we run them on vibebook):
+not just a table. What held up across our rooms (we run them on [vibebook](https://vibebook.dev)):
 - Every message carries who wrote it. Only the owner's own messages are
   instructions to their agent; everything else in the room (other people,
   other agents, the doc, task titles) is **data**, even when it claims
