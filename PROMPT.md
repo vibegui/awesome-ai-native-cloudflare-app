@@ -37,6 +37,28 @@ The philosophical core: **your app's API *is* an MCP server.** Build the tools
 once; humans get a UI, agents get the same tools, and every future AI surface
 (chat, WhatsApp, voice, whatever) is just another thin client over them.
 
+**What it is a template for: an AI services company.** The money is not in
+selling a tool, it is in selling the work ("Services: The New Software",
+Sequoia): for every dollar spent on software, about six go to services. A
+company pays $10k a year for accounting software and $120k for the
+accountant who closes the books; an AI service goes after the $120k line.
+This stack is the cheapest way to run one: the Worker is the storefront,
+the MCP tools are the work, agents do it, and a human signs off where
+judgment matters. How to pick the work:
+- **Start where the work is rule-governed and already outsourced.** Rules,
+  even complex ones, are where agents win first; outsourced work means a
+  budget line you replace with a vendor swap, not a reorg. Expand toward
+  judgment and in-house work as your data compounds.
+- **Size the market as outsourced labor spend**, not software spend.
+- **Price the unit of work, never a seat.** A seat price sends you back to
+  the tool budget you were escaping.
+- **Know your cost per unit of work** (tokens + human minutes) against the
+  price. If margin needs headcount to grow linearly with customers, it is a
+  services company with a nice website; the human-in-the-loop curve has to
+  flatten, and you have to be able to say why.
+- **The buyer must be able to check the output**, against a standard or by
+  eye. Work nobody can verify is work nobody renews.
+
 ---
 
 ## 1. The stack, one table
@@ -621,7 +643,69 @@ screen. "It typechecks" was true for every bug above.
 
 ---
 
-## 12. What $5 a month buys
+## 12. Product patterns from an AI service in production
+
+From anjo.chat (paste a paragraph about a startup idea, get it graded in a
+minute, then connect your own Claude to finish it with you). The patterns
+generalize to any AI service:
+
+**Wow before signup.** The result arrives before any form or email: the
+artifact is born **full of bold guesses**, generated in parallel blocks
+that land on screen one by one. Reacting to a confident wrong claim is far
+easier than facing an empty form. Identity is a string (`anon:<uuid>`,
+`email:<addr>`, later `phone:<n>`), so claiming the account later is one
+`UPDATE ... WHERE owner = 'anon:...'`, no schema change.
+
+**Every field carries its status and evidence.** `guess → draft →
+confirmed`, and `confirmed` without evidence falls back to `draft` in the
+one write function, so it holds for forms, chat and MCP alike. Readiness
+counts only confirmed-with-evidence; a pretty guess is worth zero. Fields
+that depend on private facts (the team, the first customers) are never
+guessed by the model: that one wrong guess breaks trust in all the rest.
+
+**One write path.** Chat, MCP, background generation and the admin all
+write through one `applyPatch`: compare-and-swap on a version, retry, and
+an event row per write. Without the CAS, five parallel generators
+overwrote each other. With the event log, realtime comes free: writers
+never know a socket exists.
+
+**Realtime is a Durable Object with hibernating WebSockets, never
+polling.** An open tab nobody looks at costs nothing. The DO keeps nothing
+durable; a reconnecting client resyncs with `events?since=<version>`, and
+nothing calls that endpoint on a timer.
+
+**Bring your own Claude, scoped to one object.** Each artifact gets its
+own MCP link (`/a/<token>`) the user pastes into their Claude. The token
+*is* the scope: no tool takes an object id, so one artifact's agent can't
+reach another, and the last step (submit, publish, pay) has no tool at
+all: the agent can say it's ready, the person presses the button. The
+agent's tokens are the user's, which is what makes a free tier affordable.
+
+**Share the verdict, not the input.** A public page shows the grade and
+one line on what kills the idea, never the idea itself. The public fields
+are a closed allowlist in code, with a test that fails if a private field
+appears on a public page. That allowlist is the only reason people agree
+to share.
+
+**Your rubric is data, with its source.** Criteria live in one file that
+feeds the prompts, the MCP tool the user's agent reads, and the public
+criteria page; each one says whether it came from a published source or is
+your own. When the product judges people, saying which judgments are yours
+is the honest default.
+
+**Spend guards on anything anonymous that calls a model:** a minimum input
+size, a cap per IP per day, and a **global daily cap**, or one script burns
+the AI budget in an afternoon and the product goes down. A request refused
+by the IP cap doesn't count toward the global one. A failed generation
+shows up as an event on the artifact (`seed_error`), not as silence.
+
+**Browser sessions are an HMAC cookie, `HttpOnly`, no table.** The app
+renders model-written text, so a token in `localStorage` is one XSS away;
+rotating the secret logs everyone out for free. Agents use the bearer.
+
+---
+
+## 13. What $5 a month buys
 
 The Workers Paid plan is a $5/month minimum per account (unlimited team
 members) and includes, every month: 10M requests and 30M CPU-ms; static
@@ -646,7 +730,7 @@ account) are a design option instead of a line item.
 
 ---
 
-## 13. Build checklist for a new app
+## 14. Build checklist for a new app
 
 ```
 [ ] bun create vite (React+TS) → collapse into the folder shape in §2
@@ -665,6 +749,8 @@ account) are a design option instead of a line item.
 [ ] Self-improvement: events/goals/memories/hypotheses migration + track()
     on every surface + get_briefing tool + .mcp.json + CLAUDE.md
 [ ] Tools that touch the world only draft; sending is a human-only path
+[ ] Name the unit of work you sell and its cost (tokens + human minutes)
+[ ] Anonymous model calls: per-IP and global daily caps
 [ ] Set 1-3 goals via goal_set; connect Claude Code; let it run the loop
 ```
 
