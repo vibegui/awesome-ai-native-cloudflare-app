@@ -7,6 +7,10 @@ operate it), an **admin UI** (shipped as an MCP App; the same React app
 works as a local tool, an `/admin` path or a subdomain behind Access), and a **WhatsApp bot** — deployed
 by `git push` via Workers Builds.
 
+What it is for: running an **AI services company**, selling the work instead
+of the tool, for $5 a month. [PROMPT.md §0](./PROMPT.md) says how to pick the
+work and price it; §12 has the product patterns from one running in production.
+
 **Smallest version first:** [`examples/minimal`](./examples/minimal) is one
 file: a chat where a model calls the app's tools, an admin that shows
 every conversation and tool call, and an MCP server Claude Code drives.
