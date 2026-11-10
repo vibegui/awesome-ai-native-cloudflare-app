@@ -1,0 +1,11 @@
+{
+  "name": "minimal-notes",
+  "main": "worker.ts",
+  "compatibility_date": "2026-07-01",
+  // `bunx wrangler kv namespace create DATA`, then paste the id here
+  "kv_namespaces": [{ "binding": "DATA", "id": "<paste-id>" }],
+  // the chat's model on OpenRouter; change it here, not in code
+  "vars": { "MODEL": "anthropic/claude-haiku-5.5" },
+  // 10 chat messages per minute per IP, in front of the paid model call
+  "ratelimits": [{ "name": "LIMIT", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } }]
+}

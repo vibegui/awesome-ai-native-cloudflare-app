@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "notes": {
+      "type": "http",
+      "url": "${NOTES_MCP_URL}",
+      "headers": { "Authorization": "Bearer ${NOTES_MCP_TOKEN}" }
+    }
+  }
+}

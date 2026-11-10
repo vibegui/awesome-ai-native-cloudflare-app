@@ -7,6 +7,10 @@ operate it), an **admin UI** (shipped as an MCP App; the same React app
 works as a local tool, an `/admin` path or a subdomain behind Access), and a **WhatsApp bot** — deployed
 by `git push` via Workers Builds.
 
+**Smallest version first:** [`examples/minimal`](./examples/minimal) is one
+file: a chat where a model calls the app's tools, an admin that shows
+every conversation and tool call, and an MCP server Claude Code drives.
+
 **Start with [PROMPT.md](./PROMPT.md)** — the master prompt / field guide.
 Read it yourself, or paste it into your AI coding agent (as `CLAUDE.md` or
 system context) and describe the app you want. The scaffold in this repo is
