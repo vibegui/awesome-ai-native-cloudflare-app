@@ -8,7 +8,7 @@
 // with the tool's result preloaded.
 import type { Env } from "../env";
 import { MetaApi } from "../services/meta";
-import { IMPROVE_TOOLS } from "./improve";
+import { METRICS_TOOLS } from "./metrics";
 
 export interface ToolDef {
   name: string;
@@ -115,7 +115,7 @@ const APP_TOOLS: ToolDef[] = [
   },
 ];
 
-export const TOOLS: ToolDef[] = [...APP_TOOLS, ...IMPROVE_TOOLS];
+export const TOOLS: ToolDef[] = [...APP_TOOLS, ...METRICS_TOOLS];
 
 export const toolByName: Record<string, ToolDef> = Object.fromEntries(
   TOOLS.map((t) => [t.name, t]),

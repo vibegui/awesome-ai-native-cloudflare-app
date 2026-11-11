@@ -1,31 +1,22 @@
 // Runtime routing: one bundle, many views. The host sets
 // hostContext.toolInfo.tool.name when it opens the iframe for a tool result;
 // TOOL_PAGES maps that name to a view component. A small tab bar lets humans
-// switch views manually (e.g. to watch the agents' rooms). No router library.
+// switch views manually. No router library.
 import { type ComponentType, useState } from "react";
 import { useMcpHostContext, useMcpState } from "./context";
 import { AnalyticsView } from "./views/analytics";
 import { DashboardView } from "./views/dashboard";
-import { BoardView } from "./views/board";
-import { RoomsView } from "./views/rooms";
 
 const TOOL_PAGES: Record<string, ComponentType> = {
   get_status: DashboardView,
   list_notes: DashboardView,
   add_note: DashboardView,
   analytics_overview: AnalyticsView,
-  task_list: BoardView,
-  task_create: BoardView,
-  task_update: BoardView,
-  room_read: RoomsView,
-  room_post: RoomsView,
 };
 
 const TABS: Array<{ label: string; component: ComponentType }> = [
   { label: "Dashboard", component: DashboardView },
   { label: "Traffic", component: AnalyticsView },
-  { label: "Rooms", component: RoomsView },
-  { label: "Board", component: BoardView },
 ];
 
 export function AppRouter() {

@@ -413,14 +413,11 @@ farm.
 
 ---
 
-## 10. The self-improvement loop: throw an agent at it
+## 10. Measure it, then let an agent read the numbers
 
-The endgame of "your app's API is an MCP server": make the app **self-
-improving**. Give it senses (metrics), a compass (goals), and a notebook
-(memory + hypotheses) — all as MCP tools — and then any coding agent connected
-to `/mcp` can improve the app with nothing but tokens. No dashboards, no
-handoff docs, no tribal knowledge: `get_briefing` returns everything an agent
-needs to decide what to do next.
+Your app's API is an MCP server, so the agent that writes the code can also
+read how the code is doing. Two tools and one table are enough: no goals
+table, no hypothesis tracker, no agent org chart.
 
 **First-party analytics, full Cloudflare.** Don't add GA or PostHog — the
 Worker *is* the collector. An append-only `events` table in D1; a `track()`
@@ -432,34 +429,11 @@ free geo dimension; a cron pruning events past 90 days. Aggregates via
 `metrics_query` (group by day/name/path/country) — SQL through a whitelist,
 never interpolated.
 
-**The data model of improvement** (one migration):
-- `goals` — the objective function: `{name, metric, target, direction,
-  window_days}` where `metric` is an event name. Progress is computed live.
-  Without goals, autopilot is drift.
-- `memories` — the lab notebook: `observation | decision | result | lesson`.
-  Sessions are ephemeral; the notebook is what compounds.
-- `hypotheses` — falsifiable bets: "If we <change>, then <metric> will
-  <move> because <reason>", with lifecycle `proposed → testing →
-  confirmed | refuted`. Every code change traces to one.
-
-**The agent handshake.** Commit two files and the app becomes self-improving
-for anyone who clones it:
-1. `.mcp.json` — connects Claude Code to the deployed app's `/mcp` (env-var
-   expansion keeps the token out of git). The agent now sees production
-   reality: real metrics, real goals, real history.
-2. `CLAUDE.md` — the operating manual: brief yourself → conclude old bets →
-   pick ONE hypothesis → implement locally → deploy → record. The agent edits
-   the code on the human's machine with the human's credentials — no
-   server-side git/deploy tokens needed, which is the whole trick.
-
-**The team layer: tasks, rooms, identity.** The notebook records what was
-*learned*; two more tables make multiple agents (or multiple sessions of one)
-a team instead of a pile: `tasks` — a shared board of who-is-doing-what
-(claim, work, send to `review`, a different agent closes it), and `messages`
-— named rooms where agents post handoffs, review verdicts, and questions.
-Humans watch the same rooms through any MCP client or the app's UI; agents
-identify themselves with a stable handle passed as `author`/`owner` on every
-write. Coordination state lives in the app, not in anyone's context window.
+**The agent handshake.** Commit `.mcp.json` (connects Claude Code to the
+deployed `/mcp` with `APP_MCP_URL` / `APP_MCP_TOKEN`) and a short `CLAUDE.md`:
+read `analytics_overview` before changing anything, make one change, `track()`
+the new surface, deploy, read the numbers again in a later session. Decisions
+and lessons go in git (commit messages, this file), not in a database.
 
 **When the room has people in it.** Once humans other than the owner join
 (a client, a cofounder, another person's agent), the room needs a protocol,
@@ -481,68 +455,6 @@ not just a table. What held up across our rooms (we run them on [vibebook](https
 - Anything that leaves the room (code, money, DNS, sending) needs the
   owner's explicit yes in that context; approval for one action is not
   approval for the next.
-
-Be opinionated about the roster: three hats cover the whole loop — an
-**analyst** (metrics → ranked hypotheses, never codes), a **builder** (tasks
-→ shipped instrumented code, never self-confirms), and a **reviewer** (the
-only hat that confirms/refutes, never implements). One session = one hat;
-pull order drains the review queue first, then the board, then analysis; WIP
-limit of one task per handle; every rejection reason becomes a lesson. Roles
-before names — rename freely, keep the separation.
-
-**Governance rules that make autopilot safe** (learned from bigger systems
-that run agent teams this way):
-- **Autonomy ends at consequence.** Agents own code, config, deploys,
-  analytics. Humans approve: messaging real users, spending money, deleting
-  data, auth changes. Give each agent an explicit own / done / escalate
-  contract.
-- **The gate lives in the tool's code, not the prompt.** A prompt that says
-  "confirm first" gets compacted away or ignored; a tool that can only
-  create drafts cannot send. Ship `draft_reply`, not `send_reply`, and make
-  sending a separate path only a human triggers.
-- **Untrusted input never meets outbound tools.** Private data + untrusted
-  content + a way out is the lethal trifecta: never all three in one pass.
-  The step that reads raw email, chat or web pages runs without send,
-  delete or fetch tools and returns structured fields; the step that plans
-  sees fields, not raw text.
-- **Crons read deltas, not the world.** No full-context heartbeat: a
-  scheduled run reads new message ids and new files since the last run,
-  inside a daily budget. Cheap model to classify, good model to draft.
-- **Conclusions travel, transcripts don't.** Meeting notes and private
-  threads feed summaries and decisions; the raw text stays at its source.
-- **No agent grades its own work.** An author approves itself every time; a
-  reviewer told to *assume the work is broken* catches what the author
-  can't. Enforce it structurally: confirming a hypothesis requires
-  `reviewed_by` ≠ `author` (the server rejects self-confirmation), and
-  `review` tasks are closed by someone other than the owner.
-- **One hypothesis per change**; conclude every bet (`refuted` is as valuable
-  as `confirmed`); never leave `testing` bets dangling.
-- **Unmeasured features are invisible** — instrumentation is part of the
-  definition of done.
-- **Memory hygiene**: compact the notebook when it outgrows one briefing —
-  merge duplicates into lessons, delete the superseded. Memory that grows
-  forever stops being read.
-- **Silence is a feature**: scheduled checks and room posts speak only when
-  something changed or needs a decision — no status theater.
-- **Lessons compound**: a lesson that recurs gets promoted into `CLAUDE.md`
-  itself, so the operating manual improves like any other code.
-- **Spend tokens where they think**: frontier model for planning, review,
-  and concluding bets; cheap tiers for routine sweeps.
-- **Budgets are earned — the token economy.** Give each agent a weekly token
-  allowance; spend is self-reported per session against a task
-  (`spend_report`); efficiency (tokens per reviewer-closed outcome) is the
-  ledger (`budget_status`); a CEO hat reallocates weekly (`budget_set`) —
-  better efficiency buys a bigger budget. This single incentive makes agents
-  route routine work to cheap models, reuse lessons, and keep scopes tight —
-  and it generalizes to real money (an ads agent lowering cost-per-click
-  earns more ad budget). Only reviewer-closed outcomes count, or agents farm
-  trivial tasks.
-- Scale-up path: multiple named agents with roles (analyst, builder,
-  reviewer), a strict reporting tree with a hard headcount cap, and a
-  proposals-only heartbeat cron that *suggests* work but never acts — but
-  start with one agent and one loop.
-
----
 
 ## 11. Field notes: what production taught us
 
@@ -762,12 +674,12 @@ account) are a design option instead of a line item.
 [ ] (Optional) Register /mcp in an AI workspace (deco studio, Claude);
     call a tool from chat
 [ ] (Optional) WhatsApp: Meta app + number, secrets, configure webhook, done
-[ ] Self-improvement: events/goals/memories/hypotheses migration + track()
-    on every surface + get_briefing tool + .mcp.json + CLAUDE.md
+[ ] Analytics: events migration + track() on every surface +
+    analytics_overview over MCP + .mcp.json + a short CLAUDE.md
 [ ] Tools that touch the world only draft; sending is a human-only path
 [ ] Name the unit of work you sell and its cost (tokens + human minutes)
 [ ] Anonymous model calls: per-IP and global daily caps
-[ ] Set 1-3 goals via goal_set; connect Claude Code; let it run the loop
+[ ] Connect Claude Code; read the numbers before every change
 ```
 
 The loop from here: every new feature = a core function + an MCP tool +
