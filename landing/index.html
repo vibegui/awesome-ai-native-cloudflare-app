@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>The $5 AI-Native Stack</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="One Cloudflare Worker that is your site, your MCP server, your WhatsApp bot and your agent team's control plane. $5 a month. Cheaper than Vercel + Supabase, and it scales out instead of up.">
+<meta name="description" content="One Cloudflare Worker that is your site, your MCP server, your WhatsApp bot and your analytics. $5 a month. Cheaper than Vercel + Supabase, and it scales out instead of up.">
 <meta name="theme-color" content="#f2f3f6" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0d1015" media="(prefers-color-scheme: dark)">
 <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
@@ -197,10 +197,10 @@ td.win { color: var(--good); font-weight: 600; }
 .honest strong { color: var(--ink); }
 
 /* loop */
-.loop { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; counter-reset: step; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.loop { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; counter-reset: step; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
 .step { padding: 22px; display: grid; gap: 8px; align-content: start; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); counter-increment: step; min-width: 0; }
-.step:nth-child(3n) { border-right: 0; }
-.step:nth-last-child(-n+3) { border-bottom: 0; }
+.step:nth-child(4n) { border-right: 0; }
+.step:nth-last-child(-n+4) { border-bottom: 0; }
 .step::before { content: counter(step, decimal-leading-zero); font-family: var(--mono); font-size: 0.78rem; color: var(--accent); font-weight: 600; }
 .step code { font-family: var(--mono); font-size: 0.8rem; background: var(--bg); padding: 1px 6px; border-radius: 4px; }
 .step p { font-size: var(--step--1); color: var(--muted); }
@@ -265,6 +265,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 @media (max-width: 560px) {
   .loop, .hats, .bindings { grid-template-columns: minmax(0, 1fr); }
   .step { border-right: 0 !important; border-bottom: 1px solid var(--line) !important; }
+  .step:not(:last-child) { border-bottom: 1px solid var(--line) !important; }
   .step:last-child { border-bottom: 0 !important; }
   .nav-links { display: none; }
 }
@@ -293,8 +294,8 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
   <div class="wrap">
     <div class="hero-copy">
       <p class="eyebrow">Open source · MIT · Cloudflare Workers</p>
-      <h1>A whole AI-native app that improves itself, for <em>$5</em> a month.</h1>
-      <p class="lede">One Worker is your website, your MCP server, your WhatsApp bot, your cron and the control plane your agent team works through. Agents read real metrics, file bets, ship code and review each other. You set the goals.</p>
+      <h1>A whole AI-native app, for <em>$5</em> a month.</h1>
+      <p class="lede">One Worker is your website, your MCP server, your WhatsApp bot, your cron and your analytics. Your coding agent operates it over MCP and reads the real numbers before it changes anything. You decide what ships.</p>
       <div class="surfaces">
         <span class="chip">GET /</span><span class="chip">POST /mcp</span><span class="chip">/webhook</span><span class="chip">POST /e</span><span class="chip">scheduled()</span><span class="chip">queue()</span>
       </div>
@@ -445,8 +446,8 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
         <div class="part">
           <div class="part-name"><strong>D1</strong><span>SQL</span></div>
           <p class="role">Relational data, analytics and the agent board.</p>
-          <p>SQLite with numbered migrations. Holds users, events, goals, hypotheses and tasks. Costs nothing while idle, so one database per customer is a real option.</p>
-          <pre>await env.DB.prepare("SELECT * FROM goals").all()</pre>
+          <p>SQLite with numbered migrations. Holds users, notes and the event stream. Costs nothing while idle, so one database per customer is a real option.</p>
+          <pre>await env.DB.prepare("SELECT * FROM notes").all()</pre>
           <p class="incl num">$5: 25B rows read · 50M written · 5 GB · 50k databases</p>
         </div>
         <div class="part">
@@ -519,7 +520,7 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
           <div class="part-name"><strong>MCP</strong><span>protocol</span></div>
           <p class="role">The app's API is an agent's toolbox.</p>
           <p>A ~150-line JSON-RPC server at <code>/mcp</code> exposes the same functions the UI calls. Claude, ChatGPT and deco studio can operate the app. The admin screen is just another client of those tools: run it locally, put it behind Access, or render it inside the workspace.</p>
-          <pre>{ "method": "tools/call", "params": { "name": "get_briefing" } }</pre>
+          <pre>{ "method": "tools/call", "params": { "name": "analytics_overview" } }</pre>
           <p class="incl">Plain code in the Worker</p>
         </div>
       </div>
@@ -698,23 +699,15 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
 <section id="loop">
   <div class="wrap">
     <div class="head">
-      <p class="eyebrow">The model</p>
-      <h2>The app exposes its own metrics, and agents close the gap.</h2>
-      <p class="lede">Analytics, goals, memory, hypotheses, a task board and chat rooms are all MCP tools on the deployed Worker. Connect Claude Code with two committed files, <code>.mcp.json</code> and <code>CLAUDE.md</code>, and every session runs the same loop on your machine with your credentials. No server-side git tokens, no hosted brain.</p>
+      <p class="eyebrow">The loop</p>
+      <h2>The app exposes its own numbers. The agent reads them first.</h2>
+      <p class="lede">First-party analytics are MCP tools on the deployed Worker. Connect Claude Code with two committed files, <code>.mcp.json</code> and <code>CLAUDE.md</code>, and every change runs the same short loop on your machine with your credentials. No server-side git tokens, no hosted brain.</p>
     </div>
     <div class="loop">
-      <div class="step"><h3>Brief</h3><p><code>get_briefing</code> returns goals with live progress, 7-day metrics, open bets, the board and the human's latest directive.</p></div>
-      <div class="step"><h3>Close old bets</h3><p>Every hypothesis in <code>testing</code> is checked against real numbers by a different agent, told to assume it is wrong.</p></div>
-      <div class="step"><h3>Pick one</h3><p>Review queue first, then open tasks, then the best proposed bet: "If we change X, metric Y moves, because Z."</p></div>
-      <div class="step"><h3>Build</h3><p>Edit the code for that one bet. Every new surface gets <code>track()</code>, or the next session can't see it.</p></div>
+      <div class="step"><h3>Read</h3><p><code>analytics_overview</code>: traffic, status, referrers and devices, every dimension a filter.</p></div>
+      <div class="step"><h3>Change one thing</h3><p>Core function, then MCP tool, then maybe a view.</p></div>
+      <div class="step"><h3>Track it</h3><p>Every new surface gets <code>track()</code>, or nobody can tell whether it worked.</p></div>
       <div class="step"><h3>Ship</h3><p><code>bun run check</code>, tests, an adversarial diff review, deploy, then smoke-test production.</p></div>
-      <div class="step"><h3>Record</h3><p>Hypothesis to <code>testing</code>, task to <code>review</code>, a decision in memory, a handoff in <code>#general</code>.</p></div>
-    </div>
-    <div class="hats">
-      <div class="hat"><code>analyst</code><p>Reads metrics, writes observations, files and ranks bets.</p><p class="never">Never writes code.</p></div>
-      <div class="hat"><code>builder</code><p>Claims tasks, implements, instruments, deploys.</p><p class="never">Never grades its own work.</p></div>
-      <div class="hat"><code>reviewer</code><p>Assumes it's broken. The only hat that confirms or refutes.</p><p class="never">Never implements.</p></div>
-      <div class="hat"><code>ceo</code><p>Reallocates weekly token budgets by tokens per reviewer-closed task.</p><p class="never">Real money only from a human.</p></div>
     </div>
   </div>
 </section>
@@ -739,8 +732,8 @@ footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wr
   <div class="wrap">
     <div class="head" style="margin-bottom: 0">
       <p class="eyebrow">Start</p>
-      <h2>Clone, deploy, set three goals.</h2>
-      <p class="lede">Then open Claude Code in the repo and say "run the loop". The field guide works as a prompt too: paste it into any coding agent and describe your app.</p>
+      <h2>Clone, deploy, describe your app.</h2>
+      <p class="lede">Then open Claude Code in the repo and say what to build. The field guide works as a prompt too: paste it into any coding agent and describe your app.</p>
       <div class="ctas">
         <a class="btn btn-primary" href="https://github.com/vibegui/awesome-ai-native-cloudflare-app">Clone the starter</a>
         <a class="btn btn-ghost" href="https://developers.cloudflare.com/workers/platform/pricing/">Cloudflare pricing</a>

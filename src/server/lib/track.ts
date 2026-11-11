@@ -3,7 +3,7 @@
 // fire-and-forget safe: analytics must never break the app.
 //
 // Instrumentation rule: every feature you ship gets at least one track()
-// call, or the self-improvement loop is blind to it.
+// call, or nobody can measure it.
 import type { Env } from "../env";
 
 export interface TrackOpts {
