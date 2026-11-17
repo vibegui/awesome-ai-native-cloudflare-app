@@ -1,5 +1,10 @@
 # awesome-ai-native-cloudflare-app
 
+> **New: [Cloudflare skills](./skills/README.md).** Six Agent Skills for
+> running Workers in production: request budgets, edge caching, Worker
+> memory, egress, WAF and bots, security baseline. One prompt installs them
+> in your project: [see the skills page](./skills/README.md#install).
+
 A batteries-included starting point for **AI-native apps on Cloudflare
 Workers**: one Worker that is simultaneously an HTTP app, an **MCP server**
 (so AI agents and workspaces like [deco studio](https://decocms.com) can

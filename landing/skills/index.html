@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cloudflare Skills · $5 Stack</title>
+<meta name="description" content="Six Agent Skills for running Cloudflare Workers in production without surprise bills, outages or self-inflicted blocks. One prompt installs them.">
+<meta name="theme-color" content="#f2f3f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1015" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="canonical" href="https://five-dollar-stack.pages.dev/skills/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://five-dollar-stack.pages.dev/skills/">
+<meta property="og:title" content="Cloudflare skills for your coding agent">
+<meta property="og:description" content="Request budgets, edge caching, Worker memory, egress, WAF and bots, security baseline. One prompt installs them.">
+<meta property="og:image" content="https://five-dollar-stack.pages.dev/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #f2f3f6;
+  --surface: #ffffff;
+  --ink: #12151c;
+  --muted: #5a6273;
+  --line: #d8dce4;
+  --accent: #d9620b;      /* Cloudflare orange, darkened for contrast on light */
+  --accent-soft: #fbe6d4;
+  --rival: #8b93a3;       /* competitor bars: neutral, never red */
+  --good: #1d7a4f;
+  --code-bg: #171b23;
+  --code-ink: #e6e9ef;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --step--1: clamp(0.82rem, 0.8rem + 0.1vw, 0.88rem);
+  --step-0: clamp(1rem, 0.96rem + 0.2vw, 1.08rem);
+  --step-1: clamp(1.2rem, 1.1rem + 0.5vw, 1.45rem);
+  --step-2: clamp(1.6rem, 1.3rem + 1.4vw, 2.4rem);
+  --step-3: clamp(2.3rem, 1.6rem + 3.4vw, 4.4rem);
+  --radius: 14px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --surface: #161a22; --ink: #e8ebf1; --muted: #98a1b2; --line: #2a303b;
+    --accent: #ff8a3d; --accent-soft: #3a2415; --rival: #5f6778; --good: #4cc38a;
+    --code-bg: #090b0f; --code-ink: #e6e9ef; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --surface: #161a22; --ink: #e8ebf1; --muted: #98a1b2; --line: #2a303b;
+  --accent: #ff8a3d; --accent-soft: #3a2415; --rival: #5f6778; --good: #4cc38a;
+  --code-bg: #090b0f; --code-ink: #e6e9ef; color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body {
+  margin: 0; font-family: var(--body); font-size: var(--step-0); line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+section { padding-block: clamp(56px, 8vw, 104px); }
+section + section { border-top: 1px solid var(--line); }
+h1, h2, h3 { font-family: var(--display); line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: -0.02em; }
+h2 { font-size: var(--step-2); font-weight: 700; max-width: 22ch; }
+h3 { font-size: var(--step-1); font-weight: 700; letter-spacing: -0.01em; }
+p { margin: 0; }
+.eyebrow {
+  font-family: var(--mono); font-size: var(--step--1); text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--accent); font-weight: 600;
+}
+.lede { color: var(--muted); max-width: 62ch; font-size: var(--step-1); line-height: 1.5; }
+.head { display: grid; gap: 14px; margin-bottom: clamp(32px, 5vw, 56px); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* announce bar */
+.announce { background: var(--ink); color: var(--bg); font-size: var(--step--1); }
+.announce .wrap { display: flex; align-items: center; justify-content: center; gap: 10px 14px; flex-wrap: wrap; padding-block: 10px; text-align: center; }
+.announce b { font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; background: var(--accent); color: var(--bg); padding: 2px 8px; border-radius: 999px; }
+.announce a { font-weight: 600; text-underline-offset: 3px; }
+
+/* nav */
+nav { padding-block: 18px; }
+nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.brand { font-family: var(--display); font-weight: 800; font-size: 1.1rem; text-decoration: none; display: flex; align-items: center; gap: 10px; }
+.brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--accent); color: var(--bg); display: grid; place-items: center; font-family: var(--mono); font-size: 0.8rem; font-weight: 600; }
+.nav-links { display: flex; gap: 20px; font-size: var(--step--1); color: var(--muted); flex-wrap: wrap; }
+.nav-links a { text-decoration: none; }
+.nav-links a:hover { color: var(--ink); }
+
+
+.hero { padding-block: clamp(32px, 6vw, 72px) clamp(40px, 6vw, 72px); border-top: 0; }
+.hero h1 { font-size: var(--step-3); font-weight: 800; max-width: 18ch; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.hero .wrap { display: grid; gap: 22px; }
+.ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px; font-weight: 600; text-decoration: none; font-size: var(--step--1); border: 1px solid var(--line); cursor: pointer; font-family: inherit; }
+.btn-primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn-ghost { background: var(--surface); color: var(--ink); }
+.install { display: grid; gap: 16px; }
+.install .note { font-size: var(--step--1); color: var(--muted); }
+.term pre { white-space: pre-wrap; word-break: break-word; }
+.skills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.skill { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.skill-top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.idx { font-family: var(--mono); font-size: 0.78rem; color: var(--accent); font-weight: 600; }
+.skill .name { text-decoration: none; }
+.skill .name code { font-family: var(--mono); font-size: 0.86rem; color: var(--accent); overflow-wrap: anywhere; }
+.skill .name:hover code { text-decoration: underline; text-underline-offset: 3px; }
+.skill p { font-size: var(--step--1); color: var(--muted); }
+.skill .scar { padding-top: 10px; border-top: 1px dashed var(--line); color: var(--ink); }
+.skill .scar span { font-family: var(--mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-right: 6px; }
+.term { background: var(--code-bg); color: var(--code-ink); border-radius: var(--radius); overflow: hidden; }
+.term-bar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid rgb(255 255 255 / 0.08); font-family: var(--mono); font-size: 0.72rem; color: #8b93a3; }
+.term pre { margin: 0; padding: 18px; overflow-x: auto; font-family: var(--mono); font-size: 0.82rem; line-height: 1.7; }
+.term .c { color: #7d8597; }
+.term .p { color: #ff8a3d; }
+.copy { font: inherit; color: var(--code-ink); background: rgb(255 255 255 / 0.08); border: 0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.copy:hover { background: rgb(255 255 255 / 0.16); }
+
+
+footer { padding-block: 40px; border-top: 1px solid var(--line); font-size: var(--step--1); color: var(--muted); }
+footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+
+@media (max-width: 760px) { .skills { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 560px) { .nav-links { display: none; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="/"><span class="brand-mark">$5</span>AI-Native Stack</a>
+    <div class="nav-links">
+      <a href="/">The stack</a>
+      <a href="#install">Install</a>
+      <a href="#skills">The skills</a>
+      <a href="https://github.com/vibegui/awesome-ai-native-cloudflare-app/tree/main/skills">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <p class="eyebrow">Agent Skills · MIT · Claude Code and any agent that reads .claude/skills</p>
+    <h1>Run Workers in production without the <em>surprise bill</em>.</h1>
+    <p class="lede">Six skills your coding agent loads when it touches the risky parts: anything that fetches, caching, memory, bandwidth, WAF rules and trust boundaries. Each one comes from an outage or an invoice on a team running dozens of production storefronts on Cloudflare, rewritten as generic patterns. No framework, nothing you need besides a Worker.</p>
+    <div class="ctas">
+      <a class="btn btn-primary" href="#install">Install in one prompt</a>
+      <a class="btn btn-ghost" href="https://github.com/vibegui/awesome-ai-native-cloudflare-app/tree/main/skills">Read them on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap install">
+    <div class="head" style="margin-bottom: 0">
+      <p class="eyebrow">Install</p>
+      <h2>Paste this into your agent.</h2>
+      <p class="lede">At the root of your project, in Claude Code or any coding agent that reads <code>.claude/skills</code>.</p>
+    </div>
+    <div class="term">
+      <div class="term-bar"><span>prompt</span><button class="copy" data-copy="prompt" type="button">Copy</button></div>
+<pre id="prompt">Install the Cloudflare skills from https://github.com/vibegui/awesome-ai-native-cloudflare-app/tree/main/skills into this project: download the repo tarball, copy every folder under skills/ that has a SKILL.md into .claude/skills/ (create it if missing, overwrite older copies of the same skills, leave other skills alone), then list what you installed with each skill's one-line description.</pre>
+    </div>
+    <p class="note">Or do it yourself from the project root (use <code>~/.claude/skills</code> instead for every project on your machine):</p>
+    <div class="term">
+      <div class="term-bar"><span>zsh</span><button class="copy" data-copy="oneliner" type="button">Copy</button></div>
+<pre id="oneliner">mkdir -p .claude/skills &amp;&amp; curl -sL https://github.com/vibegui/awesome-ai-native-cloudflare-app/archive/refs/heads/main.tar.gz \
+  | tar -xz -C .claude/skills --strip-components=2 \
+    'awesome-ai-native-cloudflare-app-main/skills/cloudflare-*' \
+    'awesome-ai-native-cloudflare-app-main/skills/worker-*'</pre>
+    </div>
+  </div>
+</section>
+
+<section id="skills">
+  <div class="wrap">
+    <div class="head">
+      <p class="eyebrow">The skills</p>
+      <h2>Six skills, each written after something broke.</h2>
+      <p class="lede">The agent picks the right one from its description when the work calls for it. You don't have to remember they're there.</p>
+    </div>
+    <div class="skills">
+      <article class="skill">
+        <div class="skill-top"><span class="idx">01</span><a class="name" href="https://github.com/vibegui/awesome-ai-native-cloudflare-app/blob/main/skills/cloudflare-request-budget/SKILL.md"><code>cloudflare-request-budget</code></a></div>
+        <h3>Before shipping anything that fetches</h3>
+        <p>Write down the worst case before it bites: requests per page view when every call fails, caps and a total budget per loop, cron-built snapshots with stale-while-revalidate, short negative caching, service bindings between your own Workers, per-caller rate limits.</p>
+        <p class="scar"><span>The smell</span> A home page doing ~1,000 upstream reads per visit, because nobody multiplied it out.</p>
+      </article>
+      <article class="skill">
+        <div class="skill-top"><span class="idx">02</span><a class="name" href="https://github.com/vibegui/awesome-ai-native-cloudflare-app/blob/main/skills/cloudflare-edge-caching/SKILL.md"><code>cloudflare-edge-caching</code></a></div>
+        <h3>A page that should cache but doesn't</h3>
+        <p>Cache-Control per route, cache-key hygiene, the headers and cookies that silently turn a response into no-store, single-flight dedupe and an in-memory SWR cache that stays correct.</p>
+        <p class="scar"><span>The smell</span> cf-cache-status says DYNAMIC on the page you thought was static.</p>
+      </article>
+      <article class="skill">
+        <div class="skill-top"><span class="idx">03</span><a class="name" href="https://github.com/vibegui/awesome-ai-native-cloudflare-app/blob/main/skills/cloudflare-worker-memory/SKILL.md"><code>cloudflare-worker-memory</code></a></div>
+        <h3>Error 1102 or a slower Worker after a deploy</h3>
+        <p>Where the 128 MB per isolate actually goes, measuring memory per deploy, moving build-time data to KV, streaming instead of buffering.</p>
+        <p class="scar"><span>The smell</span> A bundled JSON file that grew quietly until the isolate fell over.</p>
+      </article>
+      <article class="skill">
+        <div class="skill-top"><span class="idx">04</span><a class="name" href="https://github.com/vibegui/awesome-ai-native-cloudflare-app/blob/main/skills/cloudflare-egress-audit/SKILL.md"><code>cloudflare-egress-audit</code></a></div>
+        <h3>High bandwidth, low cache hit rate</h3>
+        <p>The traps that look cached in curl but miss for real traffic, trimming payloads before render and before cache, finding the one URL eating the bill.</p>
+        <p class="scar"><span>The smell</span> HIT in your terminal, MISS for every real visitor.</p>
+      </article>
+      <article class="skill">
+        <div class="skill-top"><span class="idx">05</span><a class="name" href="https://github.com/vibegui/awesome-ai-native-cloudflare-app/blob/main/skills/cloudflare-waf-and-bots/SKILL.md"><code>cloudflare-waf-and-bots</code></a></div>
+        <h3>Bots hammering a route, or touching WAF rules</h3>
+        <p>Investigate by path, ASN, user agent and bot score; log, then challenge, then block; expiry and alerts on every automatic block; never block your own services; the Rulesets API call that wipes a whole ruleset.</p>
+        <p class="scar"><span>The smell</span> A partial PUT that wiped every rule on a production zone.</p>
+      </article>
+      <article class="skill">
+        <div class="skill-top"><span class="idx">06</span><a class="name" href="https://github.com/vibegui/awesome-ai-native-cloudflare-app/blob/main/skills/worker-security-baseline/SKILL.md"><code>worker-security-baseline</code></a></div>
+        <h3>A route that spends money, holds a secret or guards /mcp</h3>
+        <p>Same-origin checks with Origin and Sec-Fetch-Site, the Rate Limiting binding, SSRF allowlists for proxies, constant-time token checks that fail closed.</p>
+        <p class="scar"><span>The smell</span> A paid route anyone on the internet can call in a loop.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed · part of <a href="/">the $5 AI-Native Stack</a></span>
+    <span><a href="https://github.com/vibegui/awesome-ai-native-cloudflare-app/tree/main/skills">Source on GitHub</a></span>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll("[data-copy]").forEach((btn) => {
+  const pre = document.getElementById(btn.dataset.copy);
+  btn.addEventListener("click", () => {
+    navigator.clipboard.writeText(pre.innerText.trim()).then(
+      () => { btn.textContent = "Copied"; setTimeout(() => (btn.textContent = "Copy"), 1500); },
+      () => { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    );
+  });
+});
+</script>
+</body>
+</html>
