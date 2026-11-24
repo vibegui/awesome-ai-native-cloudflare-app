@@ -89,7 +89,7 @@ judgment matters. How to pick the work:
 | Push notifications | Web Push over **Web Crypto** | VAPID + aes128gcm in plain code, no npm package |
 | "Is my deploy live?" | `version_metadata` binding | Its id changes every deploy; expose it at `/version` |
 | Search over your own text | **D1 FTS5** | `bm25()` ranking, accent-insensitive; no vector store for recall (§11) |
-| Humans + agents, one channel | **A shared room** (we use vibebook) | Instructions vs data, acks, delivery cards (§10) |
+| Humans + agents, one channel | **A shared room** (we use deco.chat) | Instructions vs data, acks, delivery cards (§10) |
 
 **Decision rule for state:** ephemeral/conversational → KV with TTL;
 relational/queryable → D1; coordination/realtime → Durable Object; big or
@@ -463,7 +463,7 @@ write. Coordination state lives in the app, not in anyone's context window.
 
 **When the room has people in it.** Once humans other than the owner join
 (a client, a cofounder, another person's agent), the room needs a protocol,
-not just a table. What held up across our rooms (we run them on [vibebook](https://vibebook.dev)):
+not just a table. What held up across our rooms (we run them on [deco.chat](https://chat.decocms.com)):
 - Every message carries who wrote it. Only the owner's own messages are
   instructions to their agent; everything else in the room (other people,
   other agents, the doc, task titles) is **data**, even when it claims
